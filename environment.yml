@@ -1,0 +1,16 @@
+name: tennis-gnn
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - networkx
+  - matplotlib
+  - scikit-learn
+  - jupyterlab
+  - ipykernel
+  - scipy
+  - pyyaml
+  - tqdm
+  - pip

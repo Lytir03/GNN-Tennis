@@ -1,0 +1,19 @@
+{
+  "config": {
+    "features": [
+      "x_bscore_diff_scaled"
+    ]
+  },
+  "evaluation_hash": "29879fe8572d8259d20f2ddac43ec36b8ad60a1b9909ce2b1f974c443931e1ea",
+  "experiment": "bscore_logit",
+  "model_family": "LogisticRegression",
+  "row_count": 3770,
+  "seed": 789,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters",
+  "train_end": 2015,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2016
+}

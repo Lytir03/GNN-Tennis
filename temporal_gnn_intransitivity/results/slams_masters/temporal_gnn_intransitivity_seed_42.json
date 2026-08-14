@@ -1,0 +1,60 @@
+{
+  "experiment": "temporal_gnn_intransitivity",
+  "intransitivity_thresholds": {
+    "definition": "norm_cyclic^2 / (norm_cyclic^2 + norm_transitive^2)",
+    "high_threshold": 0.5181628703639957,
+    "low_threshold": 0.4387066081683555,
+    "minimum_common_opponents": 2,
+    "minimum_local_edges": 3
+  },
+  "scope": "slams_masters",
+  "seed": 42,
+  "test": {
+    "accuracy": 0.6381962864721485,
+    "brier": 0.23013437520814026,
+    "log_loss": 0.6537391013543437,
+    "n_matches": 3770
+  },
+  "test_by_intransitivity": {
+    "high": {
+      "accuracy": 0.6666666666666666,
+      "brier": 0.22912441122645277,
+      "log_loss": 0.6518671229643207,
+      "n_matches": 1056
+    },
+    "low": {
+      "accuracy": 0.6283783783783784,
+      "brier": 0.22890399676453066,
+      "log_loss": 0.6499311294622533,
+      "n_matches": 888
+    },
+    "medium": {
+      "accuracy": 0.6217142857142857,
+      "brier": 0.22991596934070027,
+      "log_loss": 0.6511936793681387,
+      "n_matches": 875
+    },
+    "no_context_evidence": {
+      "accuracy": 0.6309148264984227,
+      "brier": 0.23260567190277465,
+      "log_loss": 0.6617154761787076,
+      "n_matches": 951
+    }
+  },
+  "train_loss_by_epoch": [
+    0.6927230070040216,
+    0.6827811184532708,
+    0.6584005568843548,
+    0.66002726886933,
+    0.6519306626858737,
+    0.6367966485007951,
+    0.6237595835299783,
+    0.6144064106581618
+  ],
+  "validation": {
+    "accuracy": 0.6511627906976745,
+    "brier": 0.219625217811743,
+    "log_loss": 0.6297491229599659,
+    "n_matches": 1075
+  }
+}

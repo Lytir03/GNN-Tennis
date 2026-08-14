@@ -1,0 +1,36 @@
+{
+  "config": {
+    "edge": {
+      "detailed_status_flags": false,
+      "direction_encoding": "signed",
+      "exclude_unparseable_incomplete": false,
+      "include_match_status": true,
+      "include_set_margin": true,
+      "include_straight_sets": true,
+      "include_tournament_context": false,
+      "incomplete_margin_policy": "zero",
+      "signed_game_margin": true
+    },
+    "model": {
+      "aggregation": "sum",
+      "antisymmetric_decoder": true,
+      "direct_bscore_logit": true,
+      "edge_preset": "full",
+      "normalize_node_features": false,
+      "residual_connections": false,
+      "tournament_context_edges": false
+    }
+  },
+  "evaluation_hash": "29879fe8572d8259d20f2ddac43ec36b8ad60a1b9909ce2b1f974c443931e1ea",
+  "experiment": "antisymmetric_decoder",
+  "model_family": "GINE",
+  "row_count": 3770,
+  "seed": 789,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters",
+  "train_end": 2015,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2016
+}

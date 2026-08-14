@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Regenerable model/feature caches.
+# These are rebuilt by `--rebuild-features` and are large; the frozen
+# prediction artifacts under results/ are the durable scientific record.
+gbdt_comparison/results/**/features_seed_*.pkl
+gbdt_comparison/results/**/features_seed_*.csv
+temporal_gnn_intransitivity/results/**/events_*.pkl

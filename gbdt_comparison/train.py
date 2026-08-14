@@ -189,7 +189,7 @@ def run(
     # the GNN experiments, enabling strict match-level compatibility checks.
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
-    from edge_feature_ablation.experiment_tracking import (
+    from tennis_gnn.experiment_tracking import (
         ArtifactManifest,
         save_prediction_artifact,
     )

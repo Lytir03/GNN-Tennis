@@ -5,7 +5,7 @@ import unittest
 
 import pandas as pd
 
-from experiment_tracking import (
+from tennis_gnn.experiment_tracking import (
     ArtifactManifest,
     assert_compatible,
     compare_artifacts,

@@ -312,7 +312,7 @@ def run(
     )
     if str(root) not in sys.path:
         sys.path.insert(0, str(root))
-    from edge_feature_ablation.experiment_tracking import (
+    from tennis_gnn.experiment_tracking import (
         ArtifactManifest,
         save_prediction_artifact,
     )

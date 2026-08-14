@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from edge_feature_ablation.edge_features import parse_match_score
+from tennis_gnn.edge_features import parse_match_score
 from gbdt_comparison.features import ROUND_ORDER
 
 

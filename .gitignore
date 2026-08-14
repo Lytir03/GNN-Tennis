@@ -15,3 +15,6 @@ __pycache__/
 gbdt_comparison/results/**/features_seed_*.pkl
 gbdt_comparison/results/**/features_seed_*.csv
 temporal_gnn_intransitivity/results/**/events_*.pkl
+
+# Local snapshot / feature caches
+.cache/

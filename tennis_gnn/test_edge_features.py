@@ -1,7 +1,7 @@
 from datetime import datetime
 import unittest
 
-from edge_features import (
+from tennis_gnn.edge_features import (
     ABLATION_PRESETS,
     EdgeFeatureConfig,
     build_bidirectional_edges,

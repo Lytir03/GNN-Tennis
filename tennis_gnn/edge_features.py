@@ -8,6 +8,7 @@ loser -> winner edge and its sign is inverted for winner -> loser.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from functools import lru_cache
 import math
 import re
 from typing import Any, Iterable, Mapping, Sequence
@@ -123,7 +124,23 @@ def parse_match_score(
     if incomplete_margin_policy not in {"zero", "played"}:
         raise ValueError("incomplete_margin_policy must be 'zero' or 'played'")
 
-    score_text = "" if _is_missing(score) else str(score).strip()
+    # Snapshot building re-reads three years of history for every tournament
+    # round, so the same few thousand distinct score strings are parsed
+    # millions of times per run.  Normalising to text makes the arguments
+    # hashable and the result cacheable; the parse itself is unchanged.
+    return _parse_match_score_cached(
+        "" if _is_missing(score) else str(score).strip(),
+        str(best_of),
+        incomplete_margin_policy,
+    )
+
+
+@lru_cache(maxsize=None)
+def _parse_match_score_cached(
+    score_text: str,
+    best_of: str,
+    incomplete_margin_policy: str,
+) -> MatchScoreFeatures:
     retirement = bool(_RETIREMENT_RE.search(score_text))
     walkover = bool(_WALKOVER_RE.search(score_text))
     other_incomplete = bool(_OTHER_INCOMPLETE_RE.search(score_text))

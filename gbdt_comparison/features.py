@@ -11,12 +11,12 @@ import numpy as np
 import pandas as pd
 
 try:
-    from edge_feature_ablation.edge_features import parse_match_score
+    from tennis_gnn.edge_features import parse_match_score
 except ModuleNotFoundError:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from edge_feature_ablation.edge_features import parse_match_score
+    from tennis_gnn.edge_features import parse_match_score
 
 
 ROUND_ORDER = {

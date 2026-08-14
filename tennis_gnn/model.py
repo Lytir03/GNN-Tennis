@@ -19,7 +19,7 @@ LEGACY_CONTEXT_DIM = 4
 
 
 class TennisGNN(nn.Module):
-    """Two-layer GINE encoder with a pairwise match decoder.
+    """GINE encoder (``config.num_layers`` deep) with a pairwise match decoder.
 
     GINE is the right convolution for this graph: the edges carry most of the
     signal (margin, recency, surface, round) and GINE consumes edge features
@@ -62,10 +62,12 @@ class TennisGNN(nn.Module):
                 message_mlp(), edge_dim=edge_in_dim, aggr=config.aggregation
             )
 
-        self.conv1 = convolution()
-        self.conv2 = convolution()
-        self.norm1 = nn.LayerNorm(hidden_dim)
-        self.norm2 = nn.LayerNorm(hidden_dim)
+        self.convolutions = nn.ModuleList(
+            convolution() for _ in range(config.num_layers)
+        )
+        self.norms = nn.ModuleList(
+            nn.LayerNorm(hidden_dim) for _ in range(config.num_layers)
+        )
 
         self.match_head = nn.Sequential(
             nn.Linear(hidden_dim * 4 + match_context_dim, hidden_dim),
@@ -112,15 +114,13 @@ class TennisGNN(nn.Module):
             std = torch.where(std < 1e-6, torch.ones_like(std), std)
             x[:, :5] = (continuous - mean) / std
 
-        h0 = self.node_encoder(x)
-        message1 = self.norm1(
-            F.relu(self.conv1(h0, data.edge_index, data.edge_attr))
-        )
-        h1 = h0 + message1 if self.config.residual_connections else message1
-        message2 = self.norm2(
-            F.relu(self.conv2(h1, data.edge_index, data.edge_attr))
-        )
-        return h1 + message2 if self.config.residual_connections else message2
+        h = self.node_encoder(x)
+        for convolution, norm in zip(self.convolutions, self.norms):
+            message = norm(
+                F.relu(convolution(h, data.edge_index, data.edge_attr))
+            )
+            h = h + message if self.config.residual_connections else message
+        return h
 
     def forward(
         self,

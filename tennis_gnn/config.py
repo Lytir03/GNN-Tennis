@@ -44,12 +44,23 @@ class ModelConfig:
     # stays a reproducible one-line experiment.
     conv_type: str = "gine"
     attention_heads: int = 4
+    # Depth is the receptive field, and here that is the whole question.  With
+    # one layer a player's embedding sees only their own opponents - which is
+    # exactly the information the GBDT already gets as one-hop history
+    # aggregates.  Only from two layers does a shared opponent between the two
+    # players enter either embedding.  So `num_layers` is the direct,
+    # interventional test of whether relational structure is worth anything:
+    # if two hops beat one hop on two-hop-connected matches, the graph earns
+    # its place; if not, no subgroup correlation can rescue it.
+    num_layers: int = 2
 
     def __post_init__(self) -> None:
         if self.aggregation not in {"sum", "mean"}:
             raise ValueError("aggregation must be 'sum' or 'mean'")
         if self.conv_type not in {"gine", "gatv2"}:
             raise ValueError("conv_type must be 'gine' or 'gatv2'")
+        if self.num_layers < 1:
+            raise ValueError("num_layers must be at least 1")
 
 
 @dataclass(frozen=True)
@@ -135,6 +146,11 @@ def one_factor_ablations() -> Mapping[str, ModelConfig]:
         ),
         # Convolution choice.
         "gatv2_instead_of_gine": replace(BASE_MODEL, conv_type="gatv2"),
+        # Receptive field.  One hop restricts the model to each player's own
+        # opponents, which is the information the GBDT already has; three hops
+        # checks that two is not simply too shallow.
+        "one_hop": replace(BASE_MODEL, num_layers=1),
+        "three_hop": replace(BASE_MODEL, num_layers=3),
         # Match context available to the decoder.
         "legacy_match_context": replace(
             BASE_MODEL, rich_match_context=False

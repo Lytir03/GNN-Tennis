@@ -52,6 +52,28 @@ TUNED_TRAINING = TrainConfig(
     calibrate=True,
 )
 
+# Three passes over the training years.  RETAINED AS A NEGATIVE RESULT - do not
+# use this as the default recipe.
+#
+# The reasoning that produced it: on seed 42 the model looked under-optimised
+# rather than under-regularised (training log loss still falling, 0.5470 ->
+# 0.5395, and no train/validation gap at all, 0.5470 vs 0.5496), and the 2016
+# validation year cannot arbitrate between schedules - differences between every
+# schedule tried are 0.002-0.004 log loss against a standard error of roughly
+# 0.018 on 1075 matches.
+#
+# It did not replicate.  Across seeds 42/123/456/789/2026 this schedule wins
+# exactly one - seed 42, the one the diagnostic was run on - and its mean test
+# log loss (0.6034) is worse than TUNED_TRAINING's (0.6022).  The diagnostic
+# correctly described one seed and generalised to none.
+LONG_TRAINING = replace(TUNED_TRAINING, passes=3)
+
+RECIPES = {
+    "legacy": TrainConfig(),
+    "tuned": TUNED_TRAINING,
+    "long": LONG_TRAINING,
+}
+
 
 def artifact_directory(scope: str, seed: int) -> Path:
     return ROOT / "results" / "frozen_predictions" / scope / f"seed_{seed}"
@@ -152,9 +174,10 @@ def main() -> None:
     parser.add_argument("--seeds", nargs="+", type=int, default=[42])
     parser.add_argument(
         "--recipe",
-        choices=("tuned", "legacy"),
+        choices=tuple(RECIPES),
         default="tuned",
-        help="tuned = validation-selected schedule; legacy = original 2-step",
+        help="legacy = original 2-step; tuned = validation-selected; "
+        "long = three passes, chosen by the underfitting diagnostic",
     )
     parser.add_argument(
         "--members",
@@ -175,7 +198,7 @@ def main() -> None:
         if args.experiments == ["all"]
         else args.experiments
     )
-    training = TUNED_TRAINING if args.recipe == "tuned" else TrainConfig()
+    training = RECIPES[args.recipe]
 
     rows = []
     for seed in args.seeds:

@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
 
 from tennis_gnn.experiment_tracking import (  # noqa: E402
     assert_compatible,
+    evaluation_hash,
     load_prediction_artifact,
     probability_metrics,
 )
@@ -64,15 +65,20 @@ def per_seed_metrics(
             loaded[name] = load_prediction_artifact(directory, name)
         if strict and len(loaded) > 1:
             # Refuses to average models that were not scored on identical
-            # matches and labels.  Report the grouping rather than only
-            # raising, so the offending artifact is obvious.
+            # matches and labels.  The hash is restricted to the phase being
+            # compared: artifacts may legitimately differ in coverage (a model
+            # that also records its training predictions has more rows), and
+            # that difference must not be mistaken for a different test set.
+            # Report the grouping rather than only raising, so the offending
+            # artifact is obvious.
             groups: dict[str, list[str]] = {}
-            for name, (_, manifest) in loaded.items():
-                groups.setdefault(manifest["evaluation_hash"], []).append(name)
+            for name, (frame, _) in loaded.items():
+                digest = evaluation_hash(frame, phase=phase)
+                groups.setdefault(digest, []).append(name)
             if len(groups) > 1:
                 lines = [
                     f"Artifacts for seed {seed} were scored on "
-                    f"{len(groups)} different evaluation sets:"
+                    f"{len(groups)} different {phase} sets:"
                 ]
                 for digest, names in groups.items():
                     lines.append(f"  {digest[:12]}: {', '.join(sorted(names))}")
@@ -84,6 +90,7 @@ def per_seed_metrics(
             assert_compatible(
                 [manifest for _, manifest in loaded.values()],
                 require_same_seed=True,
+                require_same_evaluation=False,
             )
         for name, (frame, manifest) in loaded.items():
             subset = frame[frame["phase"] == phase]

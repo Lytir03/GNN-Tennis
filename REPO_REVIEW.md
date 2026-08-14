@@ -2,6 +2,13 @@
 
 Read-only review of everything currently in the repo (committed and uncommitted). No code was changed.
 
+> **Correction (same day).** Section 5 of this document was **wrong** and has been
+> rewritten below. It claimed that the `mean_aggregation`, `node_normalization` and
+> `residual_connections` results "validated" the current design. They did not: the
+> original ablations were **cumulative**, so each row inherited every change above
+> it and none of them measured the factor named in its own title. See
+> `TUTOR_REPORT.md` for what was done about it. The rest of this document stands.
+
 ## 1. Snapshot
 
 The repo has only 4 commits (`Initial commit` → `bscore and initial GNN` → `finished GNN+elo baseline+bscore baseline` → `small change`), but a lot of newer work sits uncommitted:
@@ -53,9 +60,12 @@ pair_z = torch.cat([h_a, h_b, h_a - h_b, torch.abs(h_a - h_b)], dim=1)
 ```
 **Recommendation: merge the antisymmetric decoder into the main notebook.** This is low-risk (it's just enforcing a symmetry the model should have anyway) and already validated.
 
-## 5. Design choices already validated — leave these alone
+## 5. ~~Design choices already validated~~ — the ablations are confounded
 
-Three other ablations in the same table make things clearly *worse*, which is useful confirmation that the current design isn't accidentally leaving performance on the table:
+**This section originally said the opposite of what follows. I got it wrong on the
+first read and caught it later; the corrected version is below.**
+
+Three other ablations in the same table make things look clearly *worse*:
 
 | Ablation | Accuracy | Log-loss | vs. baseline |
 |---|---:|---:|---:|
@@ -63,7 +73,22 @@ Three other ablations in the same table make things clearly *worse*, which is us
 | `node_normalization` (extra norm) | 0.6366 | 0.6786 | much worse |
 | `residual_connections` | 0.6485 | 0.6627 | worse |
 
-Sum aggregation, no extra normalization beyond the existing `LayerNorm`, and no residual connections — the current `TennisGINE` — is already close to a local optimum on these axes. No action needed here, just don't second-guess these choices later without re-checking this table.
+I first read this as confirmation that the current design is near a local optimum.
+It isn't, because **these ablations are cumulative, not one-factor-at-a-time**: each
+row in the original study inherits every change in the rows above it. `node_normalization`
+is genuinely and strongly harmful (0.679 vs 0.604), and because it sits early in the
+chain, `mean_aggregation`, `residual_connections` and `tournament_context` all carry
+that damage with them. Their numbers measure *inherited normalisation damage plus
+their own effect*, confounded together — not the factor named in the title.
+
+So the correct statement is: **we do not currently know whether mean aggregation or
+residual connections help or hurt.** They were never cleanly tested. The only thing
+this table establishes is that node-feature normalisation is bad.
+
+This is fixed on the `gnn-consolidation` branch: `tennis_gnn/config.py`'s
+`one_factor_ablations()` builds every variant by changing exactly one field of
+`BASE_MODEL`, and `tennis_gnn/test_tennis_gnn.py::test_each_ablation_changes_exactly_one_field`
+fails the test suite if anyone reintroduces a cumulative chain.
 
 ## 6. GBDT beats every GNN variant
 

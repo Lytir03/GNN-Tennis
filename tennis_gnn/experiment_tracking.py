@@ -51,8 +51,21 @@ def _normalise_predictions(
     return frame.sort_values(list(KEY_COLUMNS)).reset_index(drop=True)
 
 
-def evaluation_hash(frame: pd.DataFrame) -> str:
-    payload = frame[[*KEY_COLUMNS, "y_true"]].to_csv(index=False).encode()
+def evaluation_hash(frame: pd.DataFrame, *, phase: str | None = None) -> str:
+    """Hash the matches and labels an artifact was scored on.
+
+    ``phase`` restricts the hash to one phase.  This matters because artifacts
+    legitimately differ in *coverage*: a model that records its training-phase
+    predictions for diagnostics has more rows than one that stores test only,
+    so their whole-artifact hashes differ even when the test sets are identical.
+    A comparison over a single phase is valid exactly when the phase-restricted
+    hashes agree, so that is what the comparison code must check.
+    """
+
+    if phase is not None:
+        frame = frame[frame["phase"] == phase]
+    subset = frame[[*KEY_COLUMNS, "y_true"]].sort_values(list(KEY_COLUMNS))
+    payload = subset.to_csv(index=False).encode()
     return hashlib.sha256(payload).hexdigest()
 
 
@@ -107,7 +120,16 @@ def assert_compatible(
     manifests: Iterable[Mapping[str, Any]],
     *,
     require_same_seed: bool = True,
+    require_same_evaluation: bool = True,
 ) -> None:
+    """Check that artifacts describe the same experimental setup.
+
+    Set ``require_same_evaluation=False`` when the caller has already verified
+    equality on the phase it actually compares (see ``evaluation_hash``'s
+    ``phase`` argument); the whole-artifact hash is too strict in that case,
+    because it also encodes which phases an artifact happens to store.
+    """
+
     manifests = list(manifests)
     if len(manifests) < 2:
         return
@@ -117,8 +139,9 @@ def assert_compatible(
         "validation_end",
         "test_end",
         "update_phases",
-        "evaluation_hash",
     ]
+    if require_same_evaluation:
+        fields.append("evaluation_hash")
     if require_same_seed:
         fields.append("seed")
     reference = manifests[0]

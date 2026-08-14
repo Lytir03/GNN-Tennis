@@ -1,0 +1,46 @@
+{
+  "config": {
+    "ensemble_members": 1,
+    "model": {
+      "aggregation": "sum",
+      "antisymmetric_decoder": true,
+      "attention_heads": 4,
+      "conv_type": "gine",
+      "direct_bscore_logit": true,
+      "edge_preset": "full",
+      "node_bscore_features": true,
+      "normalize_node_features": false,
+      "residual_connections": false,
+      "rich_match_context": true,
+      "tournament_context_edges": false
+    },
+    "optimiser_steps": 1344,
+    "temperature": 1.0199459791183472,
+    "training": {
+      "calibrate": true,
+      "dropout": 0.3,
+      "grad_clip": null,
+      "hidden_dim": 32,
+      "init_seed": null,
+      "learning_rate": 0.0001,
+      "passes": 1,
+      "replay_batch_size": 32,
+      "replay_buffer_size": 200,
+      "seed": 789,
+      "steps_per_block": 4,
+      "weight_decay": 0.0001
+    }
+  },
+  "evaluation_hash": "93bca6269d045ebcb5d82e72bea151576739b9db616ac04fc76cea40da6c2170",
+  "experiment": "gnn_tuned",
+  "model_family": "TennisGNN[gine]",
+  "row_count": 10212,
+  "seed": 789,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters",
+  "train_end": 2015,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2016
+}

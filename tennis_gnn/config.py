@@ -33,6 +33,12 @@ class ModelConfig:
     aggregation: str = "sum"
     residual_connections: bool = False
     tournament_context_edges: bool = False
+    # The predicted match's own best-of-5 and Grand-Slam flags.  The GBDT
+    # baseline always had these; the GNN did not, which made the comparison
+    # one of information as much as of architecture.  Best-of-5 in particular
+    # changes upset probability, and it is the main thing separating a Slam
+    # from a Masters in the combined scope.
+    rich_match_context: bool = True
     # "gine" consumes edge features inside the message function; "gatv2" can
     # only use them to weight attention.  Kept as a flag so the layer choice
     # stays a reproducible one-line experiment.
@@ -65,7 +71,19 @@ class TrainConfig:
     # Temperature scaling fitted on validation only.  Preserves the ranking of
     # predictions and therefore accuracy; it only rescales confidence.
     calibrate: bool = False
+    # `seed` fixes the data: which player is 'A' in each match, and therefore
+    # the labels themselves.  Two runs with different `seed` are two different
+    # evaluation sets and cannot be averaged together.
     seed: int = 42
+    # `init_seed` fixes only the weight initialisation and the replay sampling.
+    # Varying it while holding `seed` fixed gives genuinely repeated runs of
+    # the same problem, which is what an ensemble needs.  None means "follow
+    # `seed`", reproducing the original coupled behaviour.
+    init_seed: int | None = None
+
+    @property
+    def effective_init_seed(self) -> int:
+        return self.seed if self.init_seed is None else self.init_seed
 
 
 # The architecture that reproduces the historical `current_gnn` artifact.
@@ -117,6 +135,10 @@ def one_factor_ablations() -> Mapping[str, ModelConfig]:
         ),
         # Convolution choice.
         "gatv2_instead_of_gine": replace(BASE_MODEL, conv_type="gatv2"),
+        # Match context available to the decoder.
+        "legacy_match_context": replace(
+            BASE_MODEL, rich_match_context=False
+        ),
         # Edge information.
         "tournament_context_edges": replace(
             BASE_MODEL, tournament_context_edges=True

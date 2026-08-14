@@ -15,7 +15,7 @@ optimisation passes over the training years.
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Iterable, Sequence
 
 import numpy as np
@@ -26,7 +26,7 @@ from torch_geometric.data import Batch, Data
 
 from tennis_gnn.config import ModelConfig, TrainConfig
 from tennis_gnn.data import WARMUP_END
-from tennis_gnn.model import TennisGNN
+from tennis_gnn.model import LEGACY_CONTEXT_DIM, TennisGNN
 from tennis_gnn.snapshots import BlockSnapshot
 
 
@@ -108,13 +108,26 @@ def run_experiment(
     roughly halves the cost of each configuration.
     """
 
-    torch.manual_seed(train_config.seed)
-    np.random.seed(train_config.seed)
-    generator = np.random.default_rng(train_config.seed)
+    init_seed = train_config.effective_init_seed
+    torch.manual_seed(init_seed)
+    np.random.seed(init_seed)
+    generator = np.random.default_rng(init_seed)
 
     graphs = [to_pyg(snapshot) for snapshot in snapshots]
     edge_dim = snapshots[0].edge_attr.shape[1]
-    context_dim = snapshots[0].context.shape[1]
+    stored_context_dim = snapshots[0].context.shape[1]
+    if model_config.rich_match_context and stored_context_dim <= LEGACY_CONTEXT_DIM:
+        raise ValueError(
+            "These cached snapshots predate the richer match context "
+            f"(stored width {stored_context_dim}). Rebuild them with "
+            "load_or_build(..., rebuild=True), or set "
+            "ModelConfig.rich_match_context=False."
+        )
+    context_dim = (
+        stored_context_dim
+        if model_config.rich_match_context
+        else LEGACY_CONTEXT_DIM
+    )
 
     model = TennisGNN(
         model_config,
@@ -249,6 +262,64 @@ def run_experiment(
         "predictions": predictions,
         "temperature": temperature,
         "steps": step_count,
+        "model_config": asdict(model_config),
+        "train_config": asdict(train_config),
+    }
+
+
+def run_ensemble(
+    snapshots: Sequence[BlockSnapshot],
+    model_config: ModelConfig,
+    train_config: TrainConfig,
+    *,
+    members: int = 5,
+    verbose: bool = True,
+) -> dict:
+    """Average several independently initialised models on the same data.
+
+    The data seed is held fixed so every member solves an identical problem
+    with identical labels; only the initialisation and replay sampling differ.
+    Averaging probabilities preserves the decoder's antisymmetry, because a
+    mean of complementary pairs is still complementary.
+
+    Note that this is only a fair comparison against a baseline that has been
+    given the same treatment.  Gradient-boosted trees fitted on identical data
+    with a different `random_state` are very nearly the same model, so they
+    gain almost nothing from it - that asymmetry is a real property of the two
+    model families, not a trick, but it must be stated when reporting.
+    """
+
+    frames = []
+    temperature_values = []
+    for member in range(members):
+        config = replace(train_config, init_seed=1000 + member)
+        result = run_experiment(
+            snapshots, model_config, config, verbose=False
+        )
+        frames.append(result["predictions"])
+        temperature_values.append(result["temperature"])
+        if verbose:
+            subset = result["predictions"]
+            print(
+                f"  member {member + 1}/{members}: "
+                f"val_ll={metrics(subset[subset['phase'] == 'val'])['log_loss']:.4f}",
+                flush=True,
+            )
+
+    key = ["phase", "tourney_id", "round_order", "block_idx", "row_in_block"]
+    combined = frames[0][key + ["y_true", "year", "intransitivity_level"]].copy()
+    stacked = np.stack(
+        [
+            frame.sort_values(key)["probability"].to_numpy()
+            for frame in frames
+        ]
+    )
+    combined = combined.sort_values(key).reset_index(drop=True)
+    combined["probability"] = stacked.mean(axis=0)
+    return {
+        "predictions": combined,
+        "members": members,
+        "temperature": float(np.mean(temperature_values)),
         "model_config": asdict(model_config),
         "train_config": asdict(train_config),
     }

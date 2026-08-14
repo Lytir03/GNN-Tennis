@@ -1,0 +1,7 @@
+Loading cached snapshots: slams_masters__full__seed_snapshots.pt
+Evaluating 21 configurations on validation only.
+
+[ 1/21] lr=0.0001  steps=2   batch=None  h=32  do=0.3  passes=1 -> val_ll=0.5522 (cal 0.5522) acc=0.7135 [426s]
+[ 2/21] lr=0.0001  steps=4   batch=32    h=32  do=0.3  passes=1 -> val_ll=0.5508 (cal 0.5506) acc=0.7153 [172s]
+[ 3/21] lr=0.0001  steps=8   batch=32    h=32  do=0.3  passes=1 -> val_ll=0.5537 (cal 0.5537) acc=0.7088 [322s]
+/var/folders/kn/553g2q_10fjcj73xzm5kswzw0000gn/T/tmpu1em8rqx: line 17: 10994 Terminated: 15          python tennis_gnn/tune.py --scope slams_masters --seed 42

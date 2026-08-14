@@ -32,14 +32,19 @@ from tennis_gnn.config import (  # noqa: E402
 )
 from tennis_gnn.data import TRAIN_END, VAL_END, load_dataset  # noqa: E402
 from tennis_gnn.snapshots import load_or_build  # noqa: E402
-from tennis_gnn.train import metrics, run_experiment  # noqa: E402
+from tennis_gnn.train import (  # noqa: E402
+    metrics,
+    run_ensemble,
+    run_experiment,
+)
 
 
-# Selected on validation only; see tennis_gnn/tune.py and
-# results/tuning/gnn_validation_search.csv.
+# Selected on validation log loss only, never on test.  See tennis_gnn/tune.py
+# and results/tuning/.  Mini-batch replay rather than replaying the whole
+# 200-graph buffer every step: four times the updates at under half the cost.
 TUNED_TRAINING = TrainConfig(
-    learning_rate=3e-4,
-    steps_per_block=8,
+    learning_rate=1e-4,
+    steps_per_block=4,
     replay_batch_size=32,
     hidden_dim=32,
     dropout=0.3,
@@ -59,6 +64,8 @@ def run_named(
     seed: int,
     train_config: TrainConfig,
     verbose: bool = True,
+    members: int = 1,
+    artifact_name: str | None = None,
 ) -> dict:
     ablations = one_factor_ablations()
     if name not in ablations:
@@ -73,20 +80,30 @@ def run_named(
     )
 
     start = time.time()
-    result = run_experiment(
-        snapshots,
-        model_config,
-        replace(train_config, seed=seed),
-        verbose=verbose,
-    )
+    if members > 1:
+        result = run_ensemble(
+            snapshots,
+            model_config,
+            replace(train_config, seed=seed),
+            members=members,
+            verbose=verbose,
+        )
+    else:
+        result = run_experiment(
+            snapshots,
+            model_config,
+            replace(train_config, seed=seed),
+            verbose=verbose,
+        )
     elapsed = time.time() - start
 
     predictions = result["predictions"]
+    experiment_name = artifact_name or name
     save_prediction_artifact(
         predictions,
         artifact_directory(scope, seed),
         ArtifactManifest(
-            experiment=name,
+            experiment=experiment_name,
             model_family=f"TennisGNN[{model_config.conv_type}]",
             tournament_scope=scope,
             seed=seed,
@@ -98,7 +115,8 @@ def run_named(
                 "model": asdict(model_config),
                 "training": asdict(replace(train_config, seed=seed)),
                 "temperature": result["temperature"],
-                "optimiser_steps": result["steps"],
+                "optimiser_steps": result.get("steps"),
+                "ensemble_members": members,
             },
         ),
         probability_column="probability",
@@ -108,13 +126,13 @@ def run_named(
     validation = predictions[predictions["phase"] == "val"]
     if verbose:
         print(
-            f"\n{name} [{scope} seed {seed}] in {elapsed:.0f}s "
+            f"\n{experiment_name} [{scope} seed {seed}] in {elapsed:.0f}s "
             f"(T={result['temperature']:.3f})"
         )
         print("  val :", metrics(validation))
         print("  test:", metrics(test))
     return {
-        "experiment": name,
+        "experiment": experiment_name,
         "seed": seed,
         "temperature": result["temperature"],
         **{f"val_{k}": v for k, v in metrics(validation).items()},
@@ -138,6 +156,17 @@ def main() -> None:
         default="tuned",
         help="tuned = validation-selected schedule; legacy = original 2-step",
     )
+    parser.add_argument(
+        "--members",
+        type=int,
+        default=1,
+        help="ensemble size; >1 averages independently initialised models",
+    )
+    parser.add_argument(
+        "--artifact-name",
+        default=None,
+        help="override the saved artifact name (e.g. base_ensemble)",
+    )
     parser.add_argument("--summary", default=None)
     args = parser.parse_args()
 
@@ -153,7 +182,12 @@ def main() -> None:
         for name in names:
             rows.append(
                 run_named(
-                    name, scope=args.scope, seed=seed, train_config=training
+                    name,
+                    scope=args.scope,
+                    seed=seed,
+                    train_config=training,
+                    members=args.members,
+                    artifact_name=args.artifact_name,
                 )
             )
 

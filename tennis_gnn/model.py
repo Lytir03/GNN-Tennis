@@ -14,6 +14,9 @@ from torch_geometric.nn import GATv2Conv, GINEConv
 
 from tennis_gnn.config import ModelConfig
 
+# surface one-hot (3) + round_scaled (1); the two extra flags come after.
+LEGACY_CONTEXT_DIM = 4
+
 
 class TennisGNN(nn.Module):
     """Two-layer GINE encoder with a pairwise match decoder.
@@ -129,6 +132,9 @@ class TennisGNN(nn.Module):
         h = self.encode(data)
         h_a = h[player_a_idx]
         h_b = h[player_b_idx]
+
+        if not self.config.rich_match_context:
+            match_context = match_context[:, :LEGACY_CONTEXT_DIM]
 
         score_ab = self.pair_score(h_a, h_b, match_context)
         if self.config.antisymmetric_decoder:

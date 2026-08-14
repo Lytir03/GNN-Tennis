@@ -239,8 +239,18 @@ def _block_targets(block_matches, player_to_idx, rng, snapshot, defaults):
             labels.append(0.0)
             bscore_diffs.append(loser_bscore - winner_bscore)
 
+        # Full context is always stored; ModelConfig.rich_match_context
+        # decides how much of it the model may see, so one cached snapshot
+        # serves both variants.  The last two columns close an information
+        # asymmetry: the GBDT baseline already received best-of-5 and
+        # Grand-Slam flags for the match being predicted, and the GNN did not.
         contexts.append(
-            surface_one_hot(match.surface) + [float(match.round_order) / 7.0]
+            surface_one_hot(match.surface)
+            + [
+                float(match.round_order) / 7.0,
+                float(match.best_of == 5),
+                float(match.tourney_level == "G"),
+            ]
         )
         levels.append(getattr(match, "intransitivity_level", "missing"))
 

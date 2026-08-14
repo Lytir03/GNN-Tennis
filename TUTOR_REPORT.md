@@ -415,17 +415,21 @@ comment, since the diagnostic itself was informative even though its conclusion 
 Most of the improvement is the decoder you'd already found plus fixing the two ways the
 comparison was unfair (tuning effort, feature parity). Almost none of it is new modelling.
 
-### What this actually tells you
+### What this looks like it tells you — and why that reading is wrong
 
-The GNN and the GBDT are extracting **the same information** from this data. The
-B-score logit alone gets 0.6260; both real models land at ~0.602. The graph structure,
-message passing and edge features are buying almost nothing over a tuned tabular model
-on the same features — and the honest reading is that most of the predictive signal here
-lives in player strength, which B-score already captures and both models refine similarly.
+The tempting conclusion is that the two models extract **the same information**: B-score
+alone gets 0.6260, both real models land at ~0.602, so message passing must be buying
+nothing over a tuned tabular model.
 
-That is a legitimate result and worth writing up as one. "We tested whether relational
-structure adds signal over player-strength features and found it does not, at this
-sample size" is a finding. It's just not the finding you were hoping for.
+**That conclusion is wrong, and [§8](#8-does-the-graph-actually-buy-anything-your-intransitivity-hypothesis)
+disproves it.** A tie in aggregate is not evidence of equivalent information; it is
+equally consistent with two models that are each better at different things by offsetting
+amounts — which is exactly what is happening here. The graph contributes a real,
+causally-identified 0.008 log-loss through two-hop structure, and the GNN gives it back
+through a weaker one-hop representation.
+
+I'm leaving the wrong reading visible because it's the one I'd have shipped if I had
+stopped at the aggregate table, and stopping at the aggregate table is the default.
 
 A note on the ensemble: I have a 5-member ensemble running, which will likely edge ahead
 of the single GBDT. Please read that number with the caveat in [§5](#5-the-seed-was-doing-two-jobs)
@@ -435,7 +439,129 @@ architecture. It would not honestly answer your question.
 
 ---
 
-## 8. What I did not do, and what I'd do next
+## 8. Does the graph actually buy anything? Your intransitivity hypothesis
+
+You predicted the GNN should beat the GBDT specifically on matches connected through
+a common opponent. Testing that properly took three attempts, and the first two were
+wrong in instructive ways.
+
+### Why the hypothesis is well-posed
+
+I checked what the GBDT actually receives: 72 features, and **every history feature
+among them is a one-hop aggregate of a single player's own record** — result balance,
+game and set margins, straight-sets rate, completion rate, on all surfaces and on the
+match surface. There is **no head-to-head feature and no common-opponent feature.**
+
+So the tabular model already has the one-hop view. The only thing message passing can
+add is relational. Your hypothesis names exactly the right quantity.
+
+### Attempt 1: the marginal subgroup comparison — says no
+
+Splitting the 3,770 test matches on "no direct meeting, but a shared opponent exists"
+(n = 2,209) and comparing GNN to GBDT:
+
+| stratum | GNN | GBDT | Δ | seeds won |
+|---|---:|---:|---:|---:|
+| two-hop connected | 0.6012 | 0.6001 | +0.0011 | 1/5 |
+| not two-hop connected | 0.6036 | 0.6035 | +0.0001 | 3/5 |
+
+The GNN is *worse* where you predicted it would be better.
+
+### Attempt 2: controlling for data sparsity — says yes, but shouldn't be believed
+
+Structural connectivity correlates with how much match history a player has, and data
+richness independently changes which model wins. Controlling for it inverts the result:
+
+| sparsity | two-hop | Δ | seeds won |
+|---|---|---:|---:|
+| medium (6–20 opponents) | yes | +0.0149 * | 0/5 |
+| **rich (21+ opponents)** | **yes** | **−0.0090 \*** | **5/5** |
+| rich (21+) | no | +0.0022 | 1/5 |
+
+That looks like confirmation. I did not believe it, for two reasons:
+
+1. **It doesn't replicate on a sibling model.** Running the identical split on the
+   previous GNN — same architecture, different training — gives −0.0037, 3/5, not
+   significant, and a *different* cell goes significant instead.
+2. **No dose-response.** Within data-rich matches, sorting by number of common
+   opponents gives −0.017 / −0.001 / −0.004 / −0.003 for 0–4 / 5–9 / 10–19 / 20+.
+   If reading 2-hop paths were the mechanism, more shared opponents should mean more
+   advantage. It's flat.
+
+Two significant cells pointing in **opposite directions** across ~20 comparisons is
+what noise looks like. The deeper problem is that GNN-vs-GBDT confounds everything at
+once — architecture, features, fitting — so no subgroup slice of it can isolate the
+receptive field.
+
+### Attempt 3: intervene on depth instead — and here it is
+
+The clean test is not correlational. A **one-layer** GNN sees only each player's own
+opponents, which is precisely the GBDT's one-hop view. Only from **two layers** does a
+shared opponent enter either player's embedding. So compare the *same model, same
+recipe, same data*, changing only depth (`ModelConfig.num_layers`; the encoder refactor
+was verified bit-identical at two layers, seed 42 → 0.6051 unchanged).
+
+**Two hops vs one hop, 5 seeds:**
+
+| stratum | 2-hop | 1-hop | Δ | seeds won | sig |
+|---|---:|---:|---:|---:|:--:|
+| **overall** | 0.6022 | 0.6103 | **−0.0081** | **5/5** | **\*** |
+| two-hop connected (n=2209) | 0.6012 | 0.6141 | **−0.0129** | **5/5** | **\*** |
+| not two-hop connected (n=1561) | 0.6036 | 0.6049 | −0.0014 | 4/5 | |
+
+**Interaction test** — is the gain *larger* where two-hop structure exists?
+
+| contrast | difference of deltas | 95% CI | sig |
+|---|---:|---|:--:|
+| two-hop connected − not connected | **−0.0115** | [−0.0141, −0.0088] | **\*** |
+| same, data-rich matches only | **−0.0191** | [−0.0236, −0.0147] | **\*** |
+
+**Your hypothesis is confirmed.** The second hop is worth about **9× more** on matches
+joined by a shared opponent than on matches that aren't, the interval is nowhere near
+zero, and it holds on every seed. This is an intervention, not a subgroup search: I
+changed the receptive field and the effect appeared exactly where the mechanism predicts.
+
+### And the dose stops at exactly two hops
+
+| model | accuracy | log-loss |
+|---|---:|---:|
+| 1 hop | 0.6621 | 0.6103 |
+| **2 hops** | **0.6700** | **0.6022** |
+| 3 hops | 0.6679 | 0.6049 |
+
+Three hops is *worse* than two (+0.0027, 0/5 seeds), and its interaction with two-hop
+connectivity is **+0.00009, CI [−0.0055, +0.0057]** — indistinguishable from nothing.
+
+That null is important. If the second hop's gain were really "more capacity" or "more
+depth", a third hop should have continued the trend. It doesn't. The benefit appears
+when the receptive field first reaches a common opponent and stops immediately after —
+which is the signature of *the common opponent specifically*, not of depth in general.
+
+### So why doesn't the GNN win overall?
+
+Because the two effects are separate, and only one of them favours the GNN:
+
+- On its **2-hop** ability the GNN has real, causally-demonstrated information the GBDT
+  cannot represent — worth 0.008 log-loss, which is **larger than the entire GNN–GBDT
+  gap** of 0.0007.
+- On its **1-hop** representation the GNN is *behind*: a 1-hop GNN scores 0.6103 against
+  the GBDT's 0.6015. The GBDT's 72 hand-engineered history features are a better one-hop
+  summary than anything the GNN learns from raw B-score, height and handedness.
+
+The GNN spends its structural advantage paying off a representational deficit, and the
+two roughly cancel. That is the real explanation for the tie in §7, and it's a much more
+useful finding than "they're about the same".
+
+**This makes your Elo / recent-form idea the right next move, for a specific reason.**
+The evidence says don't add more graph — add better *node* features. Give the GNN the
+GBDT's engineered per-player history features (and Elo, and recent form) as node inputs,
+and it keeps its 2-hop advantage on top of a one-hop representation as good as the
+GBDT's. That is the one configuration this analysis predicts should beat both. I'd run
+that before anything else.
+
+---
+
+## 9. What I did not do, and what I'd do next
 
 **Not done, deliberately:** `preprocess/graph{,_clay1,_grass1,_hard1}.ipynb` are four
 near-identical surface-parameterised notebooks that should be one parameterised script.
@@ -446,18 +572,34 @@ it as a recommendation rather than doing it blind.
 
 **Next, in order:**
 
-1. **Enlarge the validation set.** This is the highest-value item and it isn't a
-   modelling change. A one-year validation window with SE ≈ 0.018 cannot resolve
-   differences of 0.004, which means *every* selection decision in this project — yours
-   and mine — rests on noise. Two or three validation years (moving the test window
-   later, or rolling-origin validation across several folds) would make model selection
-   mean something. Until then, "config A beat config B on validation" is not a finding.
+1. **Give the GNN the GBDT's history features as node features.** This is now the
+   highest-value modelling change and §8 says why: the GNN's 2-hop advantage is real and
+   worth more than the whole gap, but it is being spent covering a one-hop representation
+   that is *worse* than the GBDT's engineered features (1-hop GNN 0.6103 vs GBDT 0.6015).
+   Attach the per-player history aggregates — plus Elo and recent form — to the nodes and
+   the GNN keeps its structural edge on top of parity elsewhere. This is the one
+   configuration the analysis predicts should beat both models.
+   Note the fairness rule from §1.4: any feature added here must also be offered to the
+   GBDT, or we recreate the information asymmetry this branch just removed. Elo and recent
+   form are cheap to add to both; the GBDT already has crude form proxies in
+   `history_*_result_balance`.
 
-2. **Re-run the temporal experiment through `tennis_gnn/`** so it produces artifacts with
+2. **Enlarge the validation set.** A one-year validation window with SE ≈ 0.018 cannot
+   resolve differences of 0.004, which means most selection decisions in this project —
+   yours and mine — rest on noise. (Depth is the exception: it moved validation by 0.013
+   consistently across seeds, which is why that result is trustworthy and the schedule
+   result was not.) Two or three validation years, or rolling-origin validation across
+   folds, would make model selection mean something.
+
+3. **Re-run the temporal experiment through `tennis_gnn/`** so it produces artifacts with
    a matching `evaluation_hash`. Only then is its result quotable in either direction.
+   §8 raises the stakes: a recurrent per-player state is another way to reach information
+   the one-hop tabular view misses, and we now know that kind of information pays.
 
-3. **Re-run the ablations one-factor-at-a-time** — `mean_aggregation` and
+4. **Re-run the ablations one-factor-at-a-time** — `mean_aggregation` and
    `residual_connections` genuinely have not been tested.
 
-4. **Ensemble** (`run_ensemble`, `--members 5`) if you want the strongest GNN number —
-   but report it against an equivalently-treated baseline, per §5.
+5. **Ensemble** (`run_ensemble`, `--members 5`) if you want the strongest GNN number —
+   but report it against an equivalently-treated baseline, per §5. Partial results
+   (seeds 42, 123) give 0.6025 and 0.6024 against single-model 0.6051 and 0.6015: mixed,
+   and not obviously worth the 5× cost.

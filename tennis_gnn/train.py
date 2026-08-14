@@ -138,8 +138,15 @@ def run_experiment(
     ]
 
     # ---- Pass 1: optimisation over the training years only ----------------
+    if not trainable:
+        raise ValueError(
+            "No training blocks found; check the phase assignment and that "
+            "snapshots cover the training years."
+        )
+
     replay: list[tuple] = []
     step_count = 0
+    last_loss = float("nan")
     for pass_index in range(train_config.passes):
         for index in trainable:
             snapshot = snapshots[index]
@@ -184,11 +191,12 @@ def run_experiment(
                     )
                 optimizer.step()
                 step_count += 1
+                last_loss = float(loss.item())
 
         if verbose:
             print(
                 f"  pass {pass_index + 1}/{train_config.passes} "
-                f"done ({step_count} steps, last loss {loss.item():.4f})",
+                f"done ({step_count} steps, last loss {last_loss:.4f})",
                 flush=True,
             )
 

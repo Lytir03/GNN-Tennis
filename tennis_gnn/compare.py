@@ -64,7 +64,23 @@ def per_seed_metrics(
             loaded[name] = load_prediction_artifact(directory, name)
         if strict and len(loaded) > 1:
             # Refuses to average models that were not scored on identical
-            # matches and labels.
+            # matches and labels.  Report the grouping rather than only
+            # raising, so the offending artifact is obvious.
+            groups: dict[str, list[str]] = {}
+            for name, (_, manifest) in loaded.items():
+                groups.setdefault(manifest["evaluation_hash"], []).append(name)
+            if len(groups) > 1:
+                lines = [
+                    f"Artifacts for seed {seed} were scored on "
+                    f"{len(groups)} different evaluation sets:"
+                ]
+                for digest, names in groups.items():
+                    lines.append(f"  {digest[:12]}: {', '.join(sorted(names))}")
+                lines.append(
+                    "Pass --no-strict to compare them anyway, but note that "
+                    "no paired test across these groups is valid."
+                )
+                raise SystemExit("\n".join(lines))
             assert_compatible(
                 [manifest for _, manifest in loaded.values()],
                 require_same_seed=True,

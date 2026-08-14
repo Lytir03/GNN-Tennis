@@ -257,12 +257,17 @@ def _block_targets(block_matches, player_to_idx, rng, snapshot, defaults):
     }
 
 
-def cache_path(project_root: Path, scope: str, preset: str) -> Path:
+def cache_path(
+    project_root: Path, scope: str, preset: str, seed: int
+) -> Path:
+    # The seed belongs in the key: the graph is seed-independent, but the
+    # target orientation draw is not.  Omitting it would silently serve one
+    # seed's labels to another.
     return (
         project_root
         / ".cache"
         / "snapshots"
-        / f"{scope}__{preset}__seed_snapshots.pt"
+        / f"{scope}__{preset}__seed{seed}.pt"
     )
 
 
@@ -275,7 +280,7 @@ def load_or_build(
     rebuild: bool = False,
     verbose: bool = True,
 ) -> list[BlockSnapshot]:
-    path = cache_path(project_root, dataset.scope, preset)
+    path = cache_path(project_root, dataset.scope, preset, seed)
     if path.is_file() and not rebuild:
         if verbose:
             print(f"Loading cached snapshots: {path.name}", flush=True)

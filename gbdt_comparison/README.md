@@ -46,5 +46,14 @@ conda run --no-capture-output -n tennis-gnn \
   --scope slams_masters --seeds 42 123 456 789 2026
 ```
 
-`GBDT_comparison.ipynb` confronta poi GBDT, decoder antisimmetrico, GNN corrente
-e B-score logit sugli stessi match.
+Il confronto fra GBDT, GNN e B-score logit sugli stessi match si fa con:
+
+```bash
+conda run -n tennis-gnn python tennis_gnn/compare.py \
+  --scope slams_masters --seeds 42 123 456 789 2026 \
+  --candidate base --baseline gbdt_tuned
+```
+
+`tennis_gnn/compare.py` verifica l'`evaluation_hash` di ogni artefatto prima di
+confrontarlo, quindi rifiuta di mediare modelli valutati su match o etichette
+diversi.

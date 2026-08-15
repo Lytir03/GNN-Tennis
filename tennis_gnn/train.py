@@ -26,7 +26,11 @@ from torch_geometric.data import Batch, Data
 
 from tennis_gnn.config import ModelConfig, TrainConfig
 from tennis_gnn.data import WARMUP_END
-from tennis_gnn.model import LEGACY_CONTEXT_DIM, TennisGNN
+from tennis_gnn.model import (
+    LEGACY_CONTEXT_DIM,
+    LEGACY_NODE_DIM,
+    TennisGNN,
+)
 from tennis_gnn.snapshots import BlockSnapshot
 
 
@@ -129,9 +133,23 @@ def run_experiment(
         else LEGACY_CONTEXT_DIM
     )
 
+    stored_node_dim = snapshots[0].x.shape[1]
+    if model_config.node_history_features and stored_node_dim <= LEGACY_NODE_DIM:
+        raise ValueError(
+            "These cached snapshots predate the per-node history features "
+            f"(stored width {stored_node_dim}). Rebuild them with "
+            "load_or_build(..., rebuild=True), or set "
+            "ModelConfig.node_history_features=False."
+        )
+    node_dim = (
+        stored_node_dim
+        if model_config.node_history_features
+        else LEGACY_NODE_DIM
+    )
+
     model = TennisGNN(
         model_config,
-        node_in_dim=snapshots[0].x.shape[1],
+        node_in_dim=node_dim,
         edge_in_dim=edge_dim,
         match_context_dim=context_dim,
         hidden_dim=train_config.hidden_dim,

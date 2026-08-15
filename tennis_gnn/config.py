@@ -28,6 +28,13 @@ class ModelConfig:
     edge_preset: str = "full"
     direct_bscore_logit: bool = True
     node_bscore_features: bool = True
+    # The twelve recency-weighted history statistics per player that the GBDT
+    # has always received (result balance, game and set margins, straight-sets
+    # balance, completion rate, on all surfaces and on the match surface).
+    # Giving them to the nodes is the feature-parity fix: without it the GBDT
+    # simply knows more about each player than the GNN does, and the depth
+    # ablation shows that is exactly where the GNN loses ground.
+    node_history_features: bool = False
     antisymmetric_decoder: bool = True
     normalize_node_features: bool = False
     aggregation: str = "sum"
@@ -136,6 +143,8 @@ def one_factor_ablations() -> Mapping[str, ModelConfig]:
             direct_bscore_logit=False,
             node_bscore_features=False,
         ),
+        # Feature parity with the GBDT baseline.
+        "history_nodes": replace(BASE_MODEL, node_history_features=True),
         # Message passing.
         "mean_aggregation": replace(BASE_MODEL, aggregation="mean"),
         "node_normalization": replace(

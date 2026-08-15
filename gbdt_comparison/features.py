@@ -18,6 +18,14 @@ except ModuleNotFoundError:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from tennis_gnn.edge_features import parse_match_score
 
+# Imported rather than defined here so the GNN's node features and the GBDT's
+# history features are the same computation, not two that happen to agree today.
+from tennis_gnn.history import (  # noqa: E402
+    HISTORY_STAT_NAMES,
+    HistoricalPerformance,
+    aggregate_history,
+)
+
 
 ROUND_ORDER = {
     "R128": 1,
@@ -34,25 +42,6 @@ SCORE_COLUMNS = (
     "bscore_clay",
     "bscore_grass",
 )
-HISTORY_STAT_NAMES = (
-    "history_mass",
-    "result_balance",
-    "game_margin",
-    "set_margin",
-    "straight_balance",
-    "completed_rate",
-)
-
-
-@dataclass(frozen=True)
-class HistoricalPerformance:
-    date: pd.Timestamp
-    surface: str
-    result: float
-    game_margin: float
-    set_margin: float
-    straight_balance: float
-    completed: float
 
 
 class BScoreSnapshots:
@@ -146,44 +135,6 @@ def build_static_player_table(matches: pd.DataFrame) -> tuple[pd.DataFrame, floa
     table["height"] = table["height"].fillna(median_height)
     table["hand"] = table["hand"].fillna("R")
     return table, median_height
-
-
-def aggregate_history(
-    records: deque[HistoricalPerformance],
-    current_date: pd.Timestamp,
-    *,
-    surface: str | None,
-    alpha_days: float,
-) -> dict[str, float]:
-    selected = [
-        record
-        for record in records
-        if surface is None or record.surface == surface
-    ]
-    if not selected:
-        return {name: 0.0 for name in HISTORY_STAT_NAMES}
-    ages = np.asarray(
-        [(current_date - record.date).days for record in selected],
-        dtype=float,
-    )
-    weights = 1.0 / (1.0 + ages / alpha_days)
-    mass = float(weights.sum())
-
-    def weighted(attribute: str) -> float:
-        values = np.asarray(
-            [getattr(record, attribute) for record in selected],
-            dtype=float,
-        )
-        return float(np.dot(weights, values) / mass)
-
-    return {
-        "history_mass": float(np.log1p(mass)),
-        "result_balance": weighted("result"),
-        "game_margin": weighted("game_margin"),
-        "set_margin": weighted("set_margin"),
-        "straight_balance": weighted("straight_balance"),
-        "completed_rate": weighted("completed"),
-    }
 
 
 def add_pair_features(

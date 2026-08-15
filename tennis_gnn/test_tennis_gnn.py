@@ -197,3 +197,73 @@ def _frame(probability, y):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHistoryParity(unittest.TestCase):
+    """The GNN's node history must be the GBDT's history, not a lookalike."""
+
+    def test_history_feature_layout_is_stable(self):
+        from tennis_gnn.history import (
+            HISTORY_FEATURE_DIM,
+            history_feature_names,
+        )
+
+        names = history_feature_names()
+        self.assertEqual(len(names), HISTORY_FEATURE_DIM)
+        self.assertEqual(names[0], "history_all_history_mass")
+        self.assertEqual(names[6], "history_surface_history_mass")
+
+    def test_tracker_matches_direct_aggregation(self):
+        import pandas as pd
+        from tennis_gnn.history import (
+            HistoricalPerformance,
+            HistoryTracker,
+            aggregate_history,
+        )
+
+        tracker = HistoryTracker(history_years=3, alpha_days=365.0)
+        date = pd.Timestamp("2015-01-01")
+        record = HistoricalPerformance(
+            date=pd.Timestamp("2014-07-01"),
+            surface="Clay",
+            result=1.0,
+            game_margin=0.2,
+            set_margin=0.5,
+            straight_balance=1.0,
+            completed=1.0,
+        )
+        tracker.histories["player"].append(record)
+
+        vector = tracker.feature_vector("player", date, surface="Clay")
+        all_surfaces = aggregate_history(
+            [record], date, surface=None, alpha_days=365.0
+        )
+        on_clay = aggregate_history(
+            [record], date, surface="Clay", alpha_days=365.0
+        )
+        self.assertEqual(len(vector), 12)
+        self.assertAlmostEqual(vector[0], all_surfaces["history_mass"])
+        self.assertAlmostEqual(vector[6], on_clay["history_mass"])
+
+    def test_trim_drops_matches_outside_the_window(self):
+        import pandas as pd
+        from tennis_gnn.history import HistoricalPerformance, HistoryTracker
+
+        tracker = HistoryTracker(history_years=3, alpha_days=365.0)
+        for year in (2010, 2014):
+            tracker.histories["player"].append(
+                HistoricalPerformance(
+                    date=pd.Timestamp(f"{year}-01-01"),
+                    surface="Hard",
+                    result=1.0,
+                    game_margin=0.0,
+                    set_margin=0.0,
+                    straight_balance=0.0,
+                    completed=1.0,
+                )
+            )
+        tracker.trim(["player"], pd.Timestamp("2015-01-01"))
+        self.assertEqual(len(tracker.histories["player"]), 1)
+        self.assertEqual(
+            tracker.histories["player"][0].date, pd.Timestamp("2014-01-01")
+        )

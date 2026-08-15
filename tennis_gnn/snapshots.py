@@ -32,10 +32,19 @@ from tennis_gnn.data import (  # noqa: E402
     Dataset,
     surface_one_hot,
 )
+from tennis_gnn.history import (  # noqa: E402
+    HISTORY_FEATURE_DIM,
+    HistoryTracker,
+)
 
 
 MAX_HISTORY_DAYS = 365 * 3
 ALPHA_DAYS = 365.0
+
+# B-score x4, height, handedness.  Node features up to this width are what the
+# model saw before the history features were added; everything after is the
+# twelve recency-weighted statistics the GBDT has always received.
+LEGACY_NODE_DIM = 6
 
 
 @dataclass
@@ -59,8 +68,24 @@ class BlockSnapshot:
 
 
 def _node_features(
-    players, snapshot: dict, defaults: dict, static: dict, median_height: float
+    players,
+    snapshot: dict,
+    defaults: dict,
+    static: dict,
+    median_height: float,
+    tracker: HistoryTracker,
+    snapshot_date,
+    surface: str,
 ) -> torch.Tensor:
+    """Per-player node features, always including the history statistics.
+
+    The history block is stored unconditionally so one cache serves both the
+    with-history and without-history models; ``ModelConfig.node_history_features``
+    decides how much of it the network may read.  Storing it is also what makes
+    the parity claim checkable: the same twelve numbers the GBDT receives for
+    the two players in a match are attached here to *every* player in the graph.
+    """
+
     rows = []
     for player in players:
         scores = snapshot.get(player, defaults)
@@ -76,6 +101,7 @@ def _node_features(
                 float(height),
                 1.0 if hand == "R" else 0.0,
             ]
+            + tracker.feature_vector(player, snapshot_date, surface=surface)
         )
     tensor = torch.tensor(rows, dtype=torch.float)
     return torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
@@ -117,6 +143,11 @@ def build_snapshots(
         matches["tourney_date"] < pd.Timestamp(ROLLING_START)
     ].copy()
 
+    # Seed the history tracker with the same pre-rolling matches, in date
+    # order, so the deques are chronological and the trim is well defined.
+    tracker = HistoryTracker(history_years=3, alpha_days=ALPHA_DAYS)
+    tracker.update(history.sort_values("tourney_date", kind="stable"))
+
     snapshots: list[BlockSnapshot] = []
     total = len(dataset.rolling_blocks)
 
@@ -146,8 +177,19 @@ def build_snapshots(
         )
         player_to_idx = {player: i for i, player in enumerate(players)}
 
+        # Trim before reading and append only after the targets are built:
+        # appending first would leak the result of the very match predicted.
+        tracker.trim(players, t_block)
+        block_surface = str(block_matches["surface"].iloc[0])
         x = _node_features(
-            players, snapshot, defaults, static_lookup, median_height
+            players,
+            snapshot,
+            defaults,
+            static_lookup,
+            median_height,
+            tracker,
+            t_block,
+            block_surface,
         )
 
         edge_pairs, edge_attributes, _ = build_bidirectional_edges(
@@ -174,6 +216,7 @@ def build_snapshots(
             block_matches, player_to_idx, rng, snapshot, defaults
         )
         history = pd.concat([history, block_matches], ignore_index=True)
+        tracker.update(block_matches)
         if targets is None:
             continue
 
@@ -272,12 +315,14 @@ def cache_path(
 ) -> Path:
     # The seed belongs in the key: the graph is seed-independent, but the
     # target orientation draw is not.  Omitting it would silently serve one
-    # seed's labels to another.
+    # seed's labels to another.  The version tag belongs in it for the same
+    # reason: v2 snapshots carry the twelve history statistics per node, and a
+    # v1 file would load without error but with the wrong feature width.
     return (
         project_root
         / ".cache"
         / "snapshots"
-        / f"{scope}__{preset}__seed{seed}.pt"
+        / f"{scope}__{preset}__seed{seed}__v2.pt"
     )
 
 

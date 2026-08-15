@@ -25,7 +25,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tennis_gnn.config import BASE_MODEL, TrainConfig  # noqa: E402
+from tennis_gnn.config import (  # noqa: E402
+    TrainConfig,
+    one_factor_ablations,
+)
 from tennis_gnn.data import load_dataset  # noqa: E402
 from tennis_gnn.snapshots import load_or_build  # noqa: E402
 from tennis_gnn.train import metrics, run_experiment  # noqa: E402
@@ -98,14 +101,27 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scope", default="slams_masters")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--preset", default="full")
     parser.add_argument(
         "--output", default="results/tuning/gnn_validation_search.csv"
     )
+    # A recipe is selected *for an architecture*.  Reusing the recipe chosen for
+    # 6-dimensional node features to judge an 18-dimensional model repeats the
+    # exact unfairness this module was written to remove, so the architecture
+    # under search is explicit.
+    parser.add_argument("--model", default="base")
     args = parser.parse_args()
 
+    ablations = one_factor_ablations()
+    if args.model not in ablations:
+        raise SystemExit(
+            f"Unknown model {args.model!r}; choose one of {tuple(ablations)}"
+        )
+    model_config = ablations[args.model]
+
     dataset = load_dataset(ROOT, scope=args.scope)
-    snapshots = load_or_build(ROOT, dataset, args.preset, seed=args.seed)
+    snapshots = load_or_build(
+        ROOT, dataset, model_config.edge_preset, seed=args.seed
+    )
 
     configs = search_space()
     print(f"Evaluating {len(configs)} configurations on validation only.\n")
@@ -116,7 +132,7 @@ def main() -> None:
         start = time.time()
         result = run_experiment(
             snapshots,
-            BASE_MODEL,
+            model_config,
             config,
             verbose=False,
             eval_phases=("val",),

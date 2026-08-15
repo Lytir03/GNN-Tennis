@@ -27,6 +27,7 @@ from tennis_gnn.experiment_tracking import (  # noqa: E402
 )
 from tennis_gnn.config import (  # noqa: E402
     BASE_MODEL,
+    ModelConfig,
     TrainConfig,
     one_factor_ablations,
 )
@@ -88,13 +89,23 @@ def run_named(
     verbose: bool = True,
     members: int = 1,
     artifact_name: str | None = None,
+    model_config: ModelConfig | None = None,
 ) -> dict:
-    ablations = one_factor_ablations()
-    if name not in ablations:
-        raise ValueError(
-            f"Unknown experiment {name!r}; choose one of {tuple(ablations)}"
-        )
-    model_config = ablations[name]
+    """Run one experiment and freeze its predictions.
+
+    ``model_config`` overrides the named ablation.  It exists for combinations
+    that are deliberately not one-factor - the depth ablation crossed with the
+    history node features, for instance - which must not be added to
+    ``one_factor_ablations()`` without breaking its guarantee.
+    """
+
+    if model_config is None:
+        ablations = one_factor_ablations()
+        if name not in ablations:
+            raise ValueError(
+                f"Unknown experiment {name!r}; choose one of {tuple(ablations)}"
+            )
+        model_config = ablations[name]
 
     dataset = load_dataset(ROOT, scope=scope)
     snapshots = load_or_build(

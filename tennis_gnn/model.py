@@ -16,6 +16,8 @@ from tennis_gnn.config import ModelConfig
 
 # surface one-hot (3) + round_scaled (1); the two extra flags come after.
 LEGACY_CONTEXT_DIM = 4
+# B-score x4, height, handedness; the history statistics come after.
+LEGACY_NODE_DIM = 6
 
 
 class TennisGNN(nn.Module):
@@ -101,6 +103,11 @@ class TennisGNN(nn.Module):
 
     def encode(self, data) -> torch.Tensor:
         x = data.x
+        if not self.config.node_history_features:
+            # Narrow rather than zero, so a model without the history features
+            # is exactly the model that existed before they were stored - same
+            # input width, same parameter count, same initialisation.
+            x = x[:, :LEGACY_NODE_DIM]
         if not self.config.node_bscore_features:
             # Zero the four B-score channels while keeping input width and
             # parameter count fixed, so this is an information ablation only.

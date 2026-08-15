@@ -561,7 +561,113 @@ that before anything else.
 
 ---
 
-## 9. What I did not do, and what I'd do next
+## 9. Feature parity, and the depth effect reversing
+
+§8 ended with a prediction: give the GNN the GBDT's engineered history features as
+node inputs, keep the two-hop advantage on top, and it should beat both. **That
+prediction was wrong**, and the way it failed is the most informative result here.
+
+### Parity is now a property of the code
+
+The GBDT received twelve recency-weighted statistics per player — result balance, game
+and set margins, straight-sets balance, completion rate, on all surfaces and on the
+match surface — and the GNN received none. That machinery now lives in
+`tennis_gnn/history.py`, and `gbdt_comparison/features.py` **imports** it. Two
+implementations of "the same" statistic drift apart; one definition cannot.
+
+Verified rather than asserted:
+
+| check | result |
+|---|---|
+| GBDT feature matrix after the move | unchanged, 71 identical columns, same hash |
+| GNN node history vs GBDT history, same player and match | max diff **2.3e-07** (400 matches × 12 stats) |
+| test-phase target hash | still `575e4dc2…` |
+| no-history model on rebuilt v2 snapshots | reproduces 0.6051 exactly |
+
+Every node carries what the GBDT only ever saw for the two players in a match.
+
+### Each architecture gets its own recipe
+
+My first parity run reused the recipe selected for 6-dimensional node features and
+looked clearly worse (0.6071 vs 0.6022). That was **my error, not a finding** — it is
+the same unfairness §1.3 objects to, applied by me. `tune.py` now takes `--model`, and
+the 18-dimensional model got its own 21-configuration validation search. It wants
+roughly twice the optimisation (8 steps per block rather than 4), which is what a model
+with three times the input width should want.
+
+### Result: parity is a wash
+
+| model (5 seeds) | accuracy | log-loss |
+|---|---:|---:|
+| GBDT tuned | 0.6695 | **0.6015** |
+| GNN, no history, **2 hops** | **0.6700** | **0.6022** |
+| GNN, **history**, **1 hop** | 0.6690 | 0.6028 |
+| GNN, history, 2 hops | 0.6646 | 0.6087 |
+| GNN, no history, 1 hop | 0.6621 | 0.6103 |
+
+Parity GNN vs no-history GNN: **+0.0006, CI [−0.0033, +0.0044], 3/5** — indistinguishable.
+Parity GNN vs GBDT: **+0.0013, CI [−0.0028, +0.0053]** — still a tie, still not a win.
+
+Giving the GNN the GBDT's features changes essentially nothing. The information was
+already reachable; it just was not free.
+
+### The finding: depth reverses sign depending on node features
+
+| feature set | 2 hops vs 1 hop | seeds won | |
+|---|---:|---:|:--:|
+| **without** history features | **−0.0081** | 5/5 | * |
+| **with** history features | **+0.0059** | 0/5 | * |
+
+A complete reversal, significant in both directions. Message passing is worth 0.008
+when the nodes are impoverished and **costs** 0.006 once they are well described.
+
+The mechanism is visible in the strata. Under feature parity:
+
+| stratum | Δ (2-hop − 1-hop) | |
+|---|---:|:--:|
+| two-hop connected | +0.0020 | n.s. |
+| **not** two-hop connected | **+0.0115** | * |
+
+Depth is roughly neutral where a shared opponent exists and clearly harmful where none
+does. That is over-smoothing: aggregating neighbours' embeddings dilutes each player's
+own history features, and when those features are good, dilution is pure loss. Where a
+common opponent exists, the structural gain offsets it; elsewhere there is nothing to
+offset.
+
+### Your intransitivity effect is the most robust result in the project
+
+The interaction — depth helps *relatively more* on matches joined by a shared opponent —
+is significant in **both** feature regimes, with the same sign:
+
+| feature set | interaction | 95% CI | |
+|---|---:|---|:--:|
+| without history | −0.0115 | [−0.0141, −0.0088] | * |
+| with history | −0.0095 | [−0.0167, −0.0024] | * |
+
+It survives changing the node features, changing the training recipe, and changing
+which model wins overall. Everything else in this project moved when I pushed on it;
+this did not. Your instinct that common opponents are where the graph earns its keep
+is correct, and it is now supported by an intervention replicated across two
+independent feature regimes rather than by a subgroup correlation.
+
+What the reversal adds is that the second hop is a **substitute** for per-player
+history, not a complement. It was reconstructing "who have you played and how did it
+go" — which is exactly what those twelve statistics encode. Supply them directly and
+the hop becomes redundant, then harmful.
+
+### The experiment this points to
+
+Neither "history on the nodes" nor "no history" is right, because they conflict: node
+features get smoothed, and smoothing is what destroys them. The fix is to give the
+history features to the **decoder** rather than the nodes — a skip connection from each
+player's own statistics straight to the match head, bypassing message passing entirely.
+The encoder then does what it is uniquely good at (two-hop structure) while the
+player's own record reaches the prediction undiluted. That is the configuration this
+analysis actually motivates, and I have not run it.
+
+---
+
+## 10. What I did not do, and what I'd do next
 
 **Not done, deliberately:** `preprocess/graph{,_clay1,_grass1,_hard1}.ipynb` are four
 near-identical surface-parameterised notebooks that should be one parameterised script.
@@ -572,17 +678,15 @@ it as a recommendation rather than doing it blind.
 
 **Next, in order:**
 
-1. **Give the GNN the GBDT's history features as node features.** This is now the
-   highest-value modelling change and §8 says why: the GNN's 2-hop advantage is real and
-   worth more than the whole gap, but it is being spent covering a one-hop representation
-   that is *worse* than the GBDT's engineered features (1-hop GNN 0.6103 vs GBDT 0.6015).
-   Attach the per-player history aggregates — plus Elo and recent form — to the nodes and
-   the GNN keeps its structural edge on top of parity elsewhere. This is the one
-   configuration the analysis predicts should beat both models.
-   Note the fairness rule from §1.4: any feature added here must also be offered to the
-   GBDT, or we recreate the information asymmetry this branch just removed. Elo and recent
-   form are cheap to add to both; the GBDT already has crude form proxies in
-   `history_*_result_balance`.
+1. **Route the history features to the decoder, not the nodes.** ~~Give the GNN the
+   GBDT's history features as node features.~~ Done, and §9 shows it is a wash — because
+   message passing smooths the very features that make it a wash. A skip connection from
+   each player's own twelve statistics straight to the match head keeps them undiluted
+   while the encoder keeps doing two-hop structure. This is the configuration §9's
+   reversal actually motivates.
+   Elo and recent form belong in the same channel, and the fairness rule from §1.4
+   applies: anything added must be offered to the GBDT too. `tennis_gnn/history.py` is
+   now the shared place to add them, so parity is automatic rather than remembered.
 
 2. **Enlarge the validation set.** A one-year validation window with SE ≈ 0.018 cannot
    resolve differences of 0.004, which means most selection decisions in this project —

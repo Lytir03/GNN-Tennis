@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import sys
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
@@ -107,22 +108,41 @@ def _node_features(
     return torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
 
 
-def build_snapshots(
+@dataclass
+class BlockGraph:
+    """One tournament-round's graph, before any orientation draw.
+
+    Everything here depends only on the data and the edge preset, never on the
+    seed, which is what allows one build to serve every seed.
+    """
+
+    block_idx: int
+    tourney_id: str
+    round_order: int
+    phase: str
+    year: int
+    x: torch.Tensor
+    edge_index: torch.Tensor
+    edge_attr: torch.Tensor
+    players: list[str]
+
+
+def build_graphs(
     dataset: Dataset,
     edge_config: EdgeFeatureConfig,
     *,
-    seed: int = 42,
     verbose: bool = True,
-) -> list[BlockSnapshot]:
-    """Build every block snapshot in chronological order.
+) -> list[BlockGraph]:
+    """Build every block's graph in chronological order, seed-independently.
 
-    The orientation draw (which player is 'A') consumes exactly one random
-    number per emitted match, in block order, reproducing the draw used by the
-    GBDT feature builder.  That is what keeps the two model families
-    comparable match by match.
+    Separated from the targets because graph construction is by far the
+    expensive half and does not vary with the seed: building five seeds the old
+    way repeated this work five times over.  Every block is emitted, including
+    any whose target set is empty, so that ``attach_targets`` sees exactly the
+    block sequence the original single-pass build saw - the orientation draw is
+    positional, so a missing block would shift every later label.
     """
 
-    rng = np.random.default_rng(seed)
     edge_dim = len(edge_feature_names(edge_config))
 
     # A dict lookup instead of a DataFrame .loc per player per block: the same
@@ -148,7 +168,7 @@ def build_snapshots(
     tracker = HistoryTracker(history_years=3, alpha_days=ALPHA_DAYS)
     tracker.update(history.sort_values("tourney_date", kind="stable"))
 
-    snapshots: list[BlockSnapshot] = []
+    graphs: list[BlockGraph] = []
     total = len(dataset.rolling_blocks)
 
     for block_idx, block in dataset.rolling_blocks.iterrows():
@@ -212,16 +232,11 @@ def build_snapshots(
             edge_attr, nan=0.0, posinf=0.0, neginf=0.0
         )
 
-        targets = _block_targets(
-            block_matches, player_to_idx, rng, snapshot, defaults
-        )
         history = pd.concat([history, block_matches], ignore_index=True)
         tracker.update(block_matches)
-        if targets is None:
-            continue
 
-        snapshots.append(
-            BlockSnapshot(
+        graphs.append(
+            BlockGraph(
                 block_idx=int(block_idx),
                 tourney_id=tourney_id,
                 round_order=round_order,
@@ -230,16 +245,65 @@ def build_snapshots(
                 x=x,
                 edge_index=edge_index,
                 edge_attr=edge_attr,
-                **targets,
+                players=list(players),
             )
         )
 
         if verbose and block_idx % 100 == 0:
             print(
-                f"  snapshot {block_idx:4d}/{total} "
+                f"  graph {block_idx:5d}/{total} "
                 f"nodes={x.shape[0]:4d} edges={edge_index.shape[1]:6d}",
                 flush=True,
             )
+
+    return graphs
+
+
+def attach_targets(
+    dataset: Dataset,
+    graphs: Sequence[BlockGraph],
+    *,
+    seed: int = 42,
+) -> list[BlockSnapshot]:
+    """Draw the match orientations for one seed on top of prebuilt graphs.
+
+    The draw consumes exactly one ``rng.random()`` per emitted match, in block
+    order, reproducing the sequence used by the GBDT feature builder.  That is
+    what keeps the two model families comparable match by match, so this must
+    iterate every graph in order - including blocks that yield no targets.
+    """
+
+    rng = np.random.default_rng(seed)
+    snapshots: list[BlockSnapshot] = []
+
+    for graph in graphs:
+        block_matches = dataset.block_matches(
+            graph.tourney_id, graph.round_order
+        )
+        snapshot, defaults = dataset.bscore_snapshot(
+            graph.tourney_id, graph.round_order
+        )
+        player_to_idx = {player: i for i, player in enumerate(graph.players)}
+
+        targets = _block_targets(
+            block_matches, player_to_idx, rng, snapshot, defaults
+        )
+        if targets is None:
+            continue
+
+        snapshots.append(
+            BlockSnapshot(
+                block_idx=graph.block_idx,
+                tourney_id=graph.tourney_id,
+                round_order=graph.round_order,
+                phase=graph.phase,
+                year=graph.year,
+                x=graph.x,
+                edge_index=graph.edge_index,
+                edge_attr=graph.edge_attr,
+                **targets,
+            )
+        )
 
     return snapshots
 
@@ -310,20 +374,60 @@ def _block_targets(block_matches, player_to_idx, rng, snapshot, defaults):
     }
 
 
+def graph_cache_path(project_root: Path, scope: str, preset: str) -> Path:
+    """Where the seed-independent graphs live.
+
+    No seed in the key, because nothing here depends on one.  The version tag
+    does belong: v2 graphs carry the twelve history statistics per node, and a
+    v1 file would load without error at the wrong feature width.
+    """
+
+    return (
+        project_root
+        / ".cache"
+        / "snapshots"
+        / f"{scope}__{preset}__graphs__v2.pt"
+    )
+
+
 def cache_path(
     project_root: Path, scope: str, preset: str, seed: int
 ) -> Path:
-    # The seed belongs in the key: the graph is seed-independent, but the
-    # target orientation draw is not.  Omitting it would silently serve one
-    # seed's labels to another.  The version tag belongs in it for the same
-    # reason: v2 snapshots carry the twelve history statistics per node, and a
-    # v1 file would load without error but with the wrong feature width.
+    # The seed belongs in this key even though it does not belong in the graph
+    # key: the target orientation draw depends on it, and omitting it would
+    # silently serve one seed's labels to another.
     return (
         project_root
         / ".cache"
         / "snapshots"
         / f"{scope}__{preset}__seed{seed}__v2.pt"
     )
+
+
+def load_or_build_graphs(
+    project_root: Path,
+    dataset: Dataset,
+    preset: str,
+    *,
+    rebuild: bool = False,
+    verbose: bool = True,
+) -> list[BlockGraph]:
+    path = graph_cache_path(project_root, dataset.scope, preset)
+    if path.is_file() and not rebuild:
+        if verbose:
+            print(f"Loading cached graphs: {path.name}", flush=True)
+        return torch.load(path, weights_only=False)
+
+    if verbose:
+        print(f"Building graphs for preset {preset!r}...", flush=True)
+    graphs = build_graphs(
+        dataset, ABLATION_PRESETS[preset], verbose=verbose
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(graphs, path)
+    if verbose:
+        print(f"Cached {len(graphs)} graphs to {path}", flush=True)
+    return graphs
 
 
 def load_or_build(
@@ -341,12 +445,12 @@ def load_or_build(
             print(f"Loading cached snapshots: {path.name}", flush=True)
         return torch.load(path, weights_only=False)
 
-    if verbose:
-        print(f"Building snapshots for preset {preset!r}...", flush=True)
-    edge_config = ABLATION_PRESETS[preset]
-    snapshots = build_snapshots(
-        dataset, edge_config, seed=seed, verbose=verbose
+    graphs = load_or_build_graphs(
+        project_root, dataset, preset, rebuild=rebuild, verbose=verbose
     )
+    if verbose:
+        print(f"Drawing targets for seed {seed}...", flush=True)
+    snapshots = attach_targets(dataset, graphs, seed=seed)
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(snapshots, path)
     if verbose:

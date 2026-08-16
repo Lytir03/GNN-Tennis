@@ -146,10 +146,22 @@ def run_experiment(
         if model_config.node_history_features
         else LEGACY_NODE_DIM
     )
+    if model_config.history_to_decoder and stored_node_dim <= LEGACY_NODE_DIM:
+        raise ValueError(
+            "history_to_decoder needs snapshots carrying the history block "
+            f"(stored width {stored_node_dim}); rebuild with "
+            "load_or_build(..., rebuild=True)."
+        )
+    decoder_extra_dim = (
+        stored_node_dim - LEGACY_NODE_DIM
+        if model_config.history_to_decoder
+        else 0
+    )
 
     model = TennisGNN(
         model_config,
         node_in_dim=node_dim,
+        decoder_extra_dim=decoder_extra_dim,
         edge_in_dim=edge_dim,
         match_context_dim=context_dim,
         hidden_dim=train_config.hidden_dim,

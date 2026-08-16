@@ -267,3 +267,120 @@ class TestHistoryParity(unittest.TestCase):
         self.assertEqual(
             tracker.histories["player"][0].date, pd.Timestamp("2014-01-01")
         )
+
+
+class TestDecoderRoutedHistory(unittest.TestCase):
+    """History routed to the decoder must not break the antisymmetry guarantee."""
+
+    def _graph(self, node_dim=18, n=6):
+        import torch
+        from torch_geometric.data import Data
+
+        torch.manual_seed(0)
+        x = torch.randn(n, node_dim)
+        edge_index = torch.tensor(
+            [[0, 1, 2, 3, 4, 1], [1, 0, 3, 2, 5, 2]], dtype=torch.long
+        )
+        edge_attr = torch.randn(edge_index.shape[1], 10)
+        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        data.raw_bscore_general = x[:, 0].clone()
+        return data
+
+    def _model(self, **flags):
+        from dataclasses import replace
+        from tennis_gnn.config import BASE_MODEL
+        from tennis_gnn.model import TennisGNN
+
+        config = replace(BASE_MODEL, **flags)
+        return TennisGNN(
+            config,
+            node_in_dim=6 if not config.node_history_features else 18,
+            edge_in_dim=10,
+            match_context_dim=6,
+            hidden_dim=16,
+            decoder_extra_dim=12 if config.history_to_decoder else 0,
+        )
+
+    def test_antisymmetry_holds_with_decoder_history(self):
+        import torch
+
+        data = self._graph()
+        model = self._model(history_to_decoder=True).eval()
+        a = torch.tensor([0, 2, 4])
+        b = torch.tensor([1, 3, 5])
+        context = torch.randn(3, 6)
+        with torch.no_grad():
+            forward = model(data, a, b, context)
+            reverse = model(data, b, a, context)
+        torch.testing.assert_close(forward, -reverse, atol=1e-5, rtol=1e-4)
+
+    def test_decoder_history_actually_reaches_the_head(self):
+        """Changing only the history block must change the prediction."""
+        import torch
+
+        data = self._graph()
+        model = self._model(history_to_decoder=True).eval()
+        # Give the head non-zero output weights; it is zero-initialised.
+        torch.nn.init.normal_(model.match_head[-1].weight, std=0.5)
+        a = torch.tensor([0, 2])
+        b = torch.tensor([1, 3])
+        context = torch.randn(2, 6)
+        with torch.no_grad():
+            before = model(data, a, b, context)
+            data.x[:, 6:] += 1.0
+            after = model(data, a, b, context)
+        self.assertFalse(torch.allclose(before, after))
+
+    def test_decoder_history_does_not_touch_the_encoder(self):
+        """The encoder must see only the legacy six columns."""
+        import torch
+
+        data = self._graph()
+        model = self._model(history_to_decoder=True).eval()
+        with torch.no_grad():
+            before = model.encode(data).clone()
+            data.x[:, 6:] += 5.0
+            after = model.encode(data)
+        torch.testing.assert_close(before, after)
+
+
+class TestZeroHopControl(unittest.TestCase):
+    """num_layers=0 must remove the graph entirely, not merely weaken it."""
+
+    def test_zero_hop_ignores_edges(self):
+        import torch
+        from dataclasses import replace
+        from torch_geometric.data import Data
+        from tennis_gnn.config import BASE_MODEL
+        from tennis_gnn.model import TennisGNN
+
+        torch.manual_seed(0)
+        x = torch.randn(6, 18)
+        data = Data(
+            x=x,
+            edge_index=torch.tensor(
+                [[0, 1, 2, 3], [1, 0, 3, 2]], dtype=torch.long
+            ),
+            edge_attr=torch.randn(4, 10),
+        )
+        data.raw_bscore_general = x[:, 0].clone()
+        config = replace(BASE_MODEL, num_layers=0, history_to_decoder=True)
+        model = TennisGNN(
+            config,
+            node_in_dim=6,
+            edge_in_dim=10,
+            match_context_dim=6,
+            hidden_dim=16,
+            decoder_extra_dim=12,
+        ).eval()
+        self.assertEqual(len(model.convolutions), 0)
+
+        with torch.no_grad():
+            before = model.encode(data).clone()
+            # Rewire the graph completely; a zero-hop encoder must not notice.
+            data.edge_index = torch.tensor(
+                [[0, 2, 4, 5], [5, 4, 2, 0]], dtype=torch.long
+            )
+            data.edge_attr = torch.randn(4, 10) * 10
+            after = model.encode(data)
+        torch.testing.assert_close(before, after)

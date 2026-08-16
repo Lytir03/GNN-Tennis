@@ -39,6 +39,7 @@ class TennisGNN(nn.Module):
         match_context_dim: int,
         hidden_dim: int = 32,
         dropout: float = 0.3,
+        decoder_extra_dim: int = 0,
     ):
         super().__init__()
         self.config = config
@@ -71,8 +72,15 @@ class TennisGNN(nn.Module):
             nn.LayerNorm(hidden_dim) for _ in range(config.num_layers)
         )
 
+        # Extras enter through the same four-way pairing as the embeddings, so
+        # swapping (a, b) swaps them too - which is what keeps the
+        # antisymmetrisation in `forward` exact rather than approximate.
+        self.decoder_extra_dim = decoder_extra_dim
+        decoder_in = (
+            hidden_dim * 4 + match_context_dim + decoder_extra_dim * 4
+        )
         self.match_head = nn.Sequential(
-            nn.Linear(hidden_dim * 4 + match_context_dim, hidden_dim),
+            nn.Linear(decoder_in, hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, hidden_dim // 2),
@@ -96,10 +104,14 @@ class TennisGNN(nn.Module):
         h_a: torch.Tensor,
         h_b: torch.Tensor,
         match_context: torch.Tensor,
+        extra_a: torch.Tensor | None = None,
+        extra_b: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return self.match_head(
-            torch.cat([self.pair_features(h_a, h_b), match_context], dim=1)
-        ).squeeze(-1)
+        parts = [self.pair_features(h_a, h_b)]
+        if extra_a is not None:
+            parts.append(self.pair_features(extra_a, extra_b))
+        parts.append(match_context)
+        return self.match_head(torch.cat(parts, dim=1)).squeeze(-1)
 
     def encode(self, data) -> torch.Tensor:
         x = data.x
@@ -143,12 +155,23 @@ class TennisGNN(nn.Module):
         if not self.config.rich_match_context:
             match_context = match_context[:, :LEGACY_CONTEXT_DIM]
 
-        score_ab = self.pair_score(h_a, h_b, match_context)
+        extra_a = extra_b = None
+        if self.config.history_to_decoder:
+            # Read straight from the stored node tensor, deliberately bypassing
+            # `encode`: these are the features message passing must not touch.
+            history = data.x[:, LEGACY_NODE_DIM:]
+            extra_a = history[player_a_idx]
+            extra_b = history[player_b_idx]
+
+        score_ab = self.pair_score(h_a, h_b, match_context, extra_a, extra_b)
         if self.config.antisymmetric_decoder:
             # Evaluating both orientations and antisymmetrising guarantees
             # P(A beats B) = 1 - P(B beats A) exactly, rather than leaving the
             # network to approximate a constraint we already know holds.
-            score_ba = self.pair_score(h_b, h_a, match_context)
+            # The extras swap with the embeddings, so the guarantee survives.
+            score_ba = self.pair_score(
+                h_b, h_a, match_context, extra_b, extra_a
+            )
             correction = 0.5 * (score_ab - score_ba)
         else:
             correction = score_ab

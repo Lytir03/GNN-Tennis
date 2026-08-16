@@ -667,7 +667,91 @@ analysis actually motivates, and I have not run it.
 
 ---
 
-## 10. What I did not do, and what I'd do next
+## 10. Beating the GBDT — and the control that reinterprets it
+
+Routing the history features past the encoder, straight to the match decoder, produced
+the model you asked for. It also produced the result that explains the whole project.
+
+### The headline
+
+| model (5 seeds) | accuracy | log-loss | Brier |
+|---|---:|---:|---:|
+| **GNN, history→decoder, 0 hops** | 0.6706 | **0.5940** | **0.2044** |
+| GNN, history→decoder, 1 hop | **0.6717** | 0.5950 | 0.2051 |
+| GNN, history→decoder, 2 hops | 0.6683 | 0.5995 | 0.2068 |
+| GBDT tuned | 0.6695 | 0.6015 | 0.2074 |
+| GNN, no history, 2 hops | 0.6700 | 0.6022 | 0.2077 |
+| B-score logit | 0.6442 | 0.6260 | 0.2160 |
+
+Paired against the GBDT: **−0.00755 log-loss, CI [−0.01103, −0.00407], 5/5 seeds,
+significant.** Brier likewise. Accuracy +0.0011, **not** significant.
+
+So the honest claim is precise: a significant win on *probability quality*, a tie on raw
+accuracy. Every seed, and the interval is nowhere near zero.
+
+### The control that changes what it means
+
+The winning configuration is **zero hops** — message passing removed entirely, verified
+by a test that rewires the graph and asserts the encoder's output does not move.
+
+| contrast | Δ log-loss | seeds | |
+|---|---:|---:|:--:|
+| no graph vs one hop | −0.00104 | 5/5 | n.s. |
+| no graph vs GBDT | −0.00755 | 5/5 | * |
+
+**The model that beats the GBDT does not use the graph.** Removing message passing
+costs nothing — it is nominally *better*, and runs in 4 seconds instead of 43.
+
+Every gain over the GBDT comes from things that are not the graph:
+
+- the twelve history features (feature parity)
+- the antisymmetric decoder, `0.5 * (score(a,b) − score(b,a))`
+- the B-score skill-gap residual the head corrects
+- a validation-selected training recipe
+
+Those are worth 0.0075 log-loss against a tuned GBDT. Message passing is worth
+**−0.001**, which is to say nothing.
+
+### Reading the whole arc honestly
+
+Each stage was true when measured, and each was overturned by the next control:
+
+1. **§8** — two hops beat one hop by 0.0081 on 5/5 seeds, concentrated on
+   common-opponent matches, interaction −0.0115. Real, and I believed the graph had
+   been vindicated.
+2. **§9** — give the nodes history features and the effect *reverses*: two hops lose
+   by 0.0059. The second hop was substituting for per-player history.
+3. **§10** — supply that history well and the graph contributes nothing at all. The
+   two-hop gain in §8 was never structural signal; it was message passing
+   reconstructing per-player form that the model had not been given.
+
+Your intransitivity interaction shrinks along exactly that path — −0.0115, then
+−0.0095, then −0.0035 (n.s.) — as the history information improves. That is the
+signature of a **symptom**, not a mechanism. Common opponents were where a
+history-starved model could recover history, not where irreducible relational signal
+lives.
+
+The graph was never adding information. It was compensating for missing features, and
+doing it worse than just supplying them.
+
+### What this is worth saying
+
+"We built a graph neural network for tennis and it beat a tuned GBDT" is true here but
+misleading. The defensible statement is stronger and more useful:
+
+> On this data, relational structure adds nothing over recency-weighted per-player
+> history. A model with the right output parameterisation — an antisymmetric decoder
+> over a B-score skill gap, with history features fed directly to the head — beats a
+> tuned gradient-boosted baseline by 0.0075 log-loss on every seed, and removing
+> message passing entirely does not hurt it.
+
+That is a negative result about graphs and a positive result about the decoder, and it
+is worth writing up as both. The antisymmetric decoder was your finding, sitting unused
+in an ablation table when I started; it turned out to be the load-bearing idea.
+
+---
+
+## 11. What I did not do, and what I'd do next
 
 **Not done, deliberately:** `preprocess/graph{,_clay1,_grass1,_hard1}.ipynb` are four
 near-identical surface-parameterised notebooks that should be one parameterised script.

@@ -35,6 +35,14 @@ class ModelConfig:
     # simply knows more about each player than the GNN does, and the depth
     # ablation shows that is exactly where the GNN loses ground.
     node_history_features: bool = False
+    # The same twelve statistics, but delivered straight to the match decoder
+    # instead of to the nodes.  Node features are smoothed by message passing,
+    # and the depth reversal shows that smoothing is exactly what destroys them:
+    # two hops beat one hop by 0.0081 on impoverished nodes and *lose* by 0.0059
+    # once the nodes carry history.  Routing them past the encoder keeps each
+    # player's own record undiluted while the graph still does the two-hop work
+    # it is uniquely good at.
+    history_to_decoder: bool = False
     antisymmetric_decoder: bool = True
     normalize_node_features: bool = False
     aggregation: str = "sum"
@@ -66,8 +74,8 @@ class ModelConfig:
             raise ValueError("aggregation must be 'sum' or 'mean'")
         if self.conv_type not in {"gine", "gatv2"}:
             raise ValueError("conv_type must be 'gine' or 'gatv2'")
-        if self.num_layers < 1:
-            raise ValueError("num_layers must be at least 1")
+        if self.num_layers < 0:
+            raise ValueError("num_layers must not be negative")
 
 
 @dataclass(frozen=True)
@@ -143,8 +151,9 @@ def one_factor_ablations() -> Mapping[str, ModelConfig]:
             direct_bscore_logit=False,
             node_bscore_features=False,
         ),
-        # Feature parity with the GBDT baseline.
+        # Feature parity with the GBDT baseline, by two different routes.
         "history_nodes": replace(BASE_MODEL, node_history_features=True),
+        "history_decoder": replace(BASE_MODEL, history_to_decoder=True),
         # Message passing.
         "mean_aggregation": replace(BASE_MODEL, aggregation="mean"),
         "node_normalization": replace(
@@ -155,9 +164,12 @@ def one_factor_ablations() -> Mapping[str, ModelConfig]:
         ),
         # Convolution choice.
         "gatv2_instead_of_gine": replace(BASE_MODEL, conv_type="gatv2"),
-        # Receptive field.  One hop restricts the model to each player's own
-        # opponents, which is the information the GBDT already has; three hops
-        # checks that two is not simply too shallow.
+        # Receptive field.  Zero hops removes message passing entirely and is
+        # the control that says whether the graph contributes at all; one hop
+        # restricts the model to each player's own opponents, which is the
+        # information the GBDT already has; three hops checks that two is not
+        # simply too shallow.
+        "zero_hop": replace(BASE_MODEL, num_layers=0),
         "one_hop": replace(BASE_MODEL, num_layers=1),
         "three_hop": replace(BASE_MODEL, num_layers=3),
         # Match context available to the decoder.

@@ -41,12 +41,43 @@ TRAIN_END = 2015
 VAL_END = 2016
 
 
-def phase_for_year(year: int) -> str:
+@dataclass(frozen=True)
+class Split:
+    """Where the temporal boundaries fall, and how far the data runs.
+
+    The original split gives a one-year validation window of 1075 matches, on
+    which the standard error of log loss is about 0.018 - an order of magnitude
+    larger than the differences being selected on (0.002-0.004).  That is why
+    several selection decisions in this project turned out to rest on noise.
+    The expanded split exists to fix that, not to chase a better number.
+    """
+
+    rolling_end: str
+    train_end: int
+    val_end: int
+
+
+# Reproduces every published result; retained as the reference split.
+CURRENT_SPLIT = Split(rolling_end="2021-01-01", train_end=2015, val_end=2016)
+
+# For the full-tour scope, which runs to 2024.  Two validation years over ~2.6x
+# the match density puts roughly 5x more matches in the window, cutting the
+# standard error enough that validation can actually discriminate.
+EXPANDED_SPLIT = Split(rolling_end="2025-01-01", train_end=2016, val_end=2018)
+
+SCOPE_FILES = {
+    "slams": ("atp_matches_slams.csv", "", CURRENT_SPLIT),
+    "slams_masters": ("atp_matches_slams_masters.csv", "", CURRENT_SPLIT),
+    "full": ("atp_matches_full.csv", "_full", EXPANDED_SPLIT),
+}
+
+
+def phase_for_year(year: int, split: Split = CURRENT_SPLIT) -> str:
     if year <= 2010:
         return "warmup"
-    if year <= TRAIN_END:
+    if year <= split.train_end:
         return "train"
-    if year <= VAL_END:
+    if year <= split.val_end:
         return "val"
     return "test"
 
@@ -102,11 +133,11 @@ class Dataset:
         return snapshot, defaults
 
 
-def _load_bscore_snapshots(processed: Path) -> dict:
-    general = pd.read_csv(processed / "bscore_snapshots.csv")
+def _load_bscore_snapshots(processed: Path, suffix: str = "") -> dict:
+    general = pd.read_csv(processed / f"bscore_snapshots{suffix}.csv")
     merged = general
     for surface in ("hard", "clay", "grass"):
-        path = processed / f"bscore_snapshots_{surface}.csv"
+        path = processed / f"bscore_snapshots_{surface}{suffix}.csv"
         if path.is_file():
             merged = merged.merge(
                 pd.read_csv(path),
@@ -155,16 +186,12 @@ def _build_player_static(matches: pd.DataFrame) -> tuple[pd.DataFrame, float]:
 
 
 def load_dataset(project_root: Path, *, scope: str = "slams_masters") -> Dataset:
-    if scope not in {"slams", "slams_masters"}:
-        raise ValueError("scope must be 'slams' or 'slams_masters'")
+    if scope not in SCOPE_FILES:
+        raise ValueError(f"scope must be one of {tuple(SCOPE_FILES)}")
 
     processed = project_root / "data" / "processed"
-    filename = (
-        "atp_matches_slams.csv"
-        if scope == "slams"
-        else "atp_matches_slams_masters.csv"
-    )
-    matches = pd.read_csv(processed / filename)
+    filename, suffix, split = SCOPE_FILES[scope]
+    matches = pd.read_csv(processed / filename, low_memory=False)
     matches["tourney_date"] = pd.to_datetime(matches["tourney_date"])
     matches["round_order"] = matches["round"].map(ROUND_ORDER)
     matches = matches.dropna(
@@ -204,7 +231,7 @@ def load_dataset(project_root: Path, *, scope: str = "slams_masters") -> Dataset
 
     future = matches[
         (matches["tourney_date"] >= ROLLING_START)
-        & (matches["tourney_date"] < ROLLING_END)
+        & (matches["tourney_date"] < split.rolling_end)
     ].copy()
 
     blocks = (
@@ -216,7 +243,9 @@ def load_dataset(project_root: Path, *, scope: str = "slams_masters") -> Dataset
         .reset_index(drop=True)
     )
     blocks["year"] = blocks["tourney_date"].dt.year
-    blocks["phase"] = blocks["year"].apply(phase_for_year)
+    blocks["phase"] = blocks["year"].apply(
+        lambda year: phase_for_year(year, split)
+    )
 
     player_static, median_height = _build_player_static(matches)
 
@@ -224,7 +253,7 @@ def load_dataset(project_root: Path, *, scope: str = "slams_masters") -> Dataset
         matches=matches,
         rolling_blocks=blocks,
         future_matches=future,
-        bscore_index=_load_bscore_snapshots(processed),
+        bscore_index=_load_bscore_snapshots(processed, suffix),
         player_static=player_static,
         median_height=median_height,
         scope=scope,

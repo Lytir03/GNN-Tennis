@@ -10,7 +10,7 @@ import sys
 
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent
+ROOT = HERE.parents[1]
 
 
 def complete(scope: str, seed: int, variant: str) -> bool:

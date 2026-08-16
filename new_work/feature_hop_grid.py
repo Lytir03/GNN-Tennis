@@ -18,6 +18,7 @@ within a tier, which is what keeps every hop contrast one-factor.
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import replace
 from pathlib import Path
 import sys
@@ -83,7 +84,8 @@ TIERS = {
 HOPS = ("none", 1, 2)
 
 # Cells already computed under exactly these settings; reused rather than rerun.
-EXISTING = {
+# Only valid for the scope they were run on - a wider scope shares no artifacts.
+EXISTING_SLAMS_MASTERS = {
     ("1_bscore", 1): "gnn_one_hop",
     ("1_bscore", 2): "gnn_tuned",
     ("2_history_nodes", 1): "gnn_history_tuned_one_hop",
@@ -93,18 +95,33 @@ EXISTING = {
 }
 
 
-def artifact_name(tier: str, hops: int) -> str:
-    return EXISTING.get((tier, hops), f"grid_{tier}_{hops}hop")
+def existing_for(scope: str) -> dict:
+    return EXISTING_SLAMS_MASTERS if scope == "slams_masters" else {}
+
+
+def artifact_name(tier: str, hops, scope: str) -> str:
+    return existing_for(scope).get((tier, hops), f"grid_{tier}_{hops}hop")
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scope", default="slams_masters")
+    parser.add_argument("--seeds", type=int, nargs="+", default=list(SEEDS))
+    args = parser.parse_args()
+    scope, seeds = args.scope, args.seeds
+
+    existing = existing_for(scope)
     todo = [
         (tier, hops)
         for tier in TIERS
         for hops in HOPS
-        if (tier, hops) not in EXISTING
+        if (tier, hops) not in existing
     ]
-    print(f"{len(todo)} cells to compute, {len(EXISTING)} reused\n", flush=True)
+    print(
+        f"scope={scope} seeds={seeds}: "
+        f"{len(todo)} cells to compute, {len(existing)} reused\n",
+        flush=True,
+    )
 
     for tier, hops in todo:
         spec = TIERS[tier]
@@ -113,12 +130,12 @@ def main() -> None:
             if hops == "none"
             else replace(spec["model"], num_layers=hops)
         )
-        name = artifact_name(tier, hops)
-        for seed in SEEDS:
+        name = artifact_name(tier, hops, scope)
+        for seed in seeds:
             start = time.time()
             row = run_named(
                 "base",
-                scope="slams_masters",
+                scope=scope,
                 seed=seed,
                 train_config=spec["recipe"],
                 verbose=False,
@@ -132,22 +149,24 @@ def main() -> None:
                 flush=True,
             )
 
-    names = [artifact_name(t, h) for t in TIERS for h in HOPS]
-    per_seed = per_seed_metrics("slams_masters", list(SEEDS), names)
+    names = [artifact_name(t, h, scope) for t in TIERS for h in HOPS]
+    per_seed = per_seed_metrics(scope, list(seeds), names)
     means = per_seed.groupby("experiment")[["accuracy", "log_loss"]].mean()
 
     rows = []
     for tier, spec in TIERS.items():
         row = {"tier": spec["label"], "own_recipe": spec["own_recipe"]}
         for hops in HOPS:
-            row[f"{hops}_hop"] = means.loc[artifact_name(tier, hops), "log_loss"]
+            row[f"{hops}_hop"] = means.loc[
+                artifact_name(tier, hops, scope), "log_loss"
+            ]
         # The quantity the thesis is about: what message passing is worth.
         row["gain_1_vs_none"] = row["1_hop"] - row["none_hop"]
         row["gain_2_vs_1"] = row["2_hop"] - row["1_hop"]
         rows.append(row)
 
     grid = pd.DataFrame(rows)
-    output = ROOT / "new_work" / "results" / "feature_hop_grid.csv"
+    output = ROOT / "new_work" / "results" / f"feature_hop_grid_{scope}.csv"
     output.parent.mkdir(parents=True, exist_ok=True)
     grid.to_csv(output, index=False)
 
@@ -157,7 +176,7 @@ def main() -> None:
     print("=" * 92)
     print(grid.round(5).to_string(index=False))
     print(f"\nWrote {output}")
-    gbdt = per_seed_metrics("slams_masters", list(SEEDS), ["gbdt_tuned"])
+    gbdt = per_seed_metrics(scope, list(seeds), ["gbdt_tuned"])
     print(f"\nGBDT reference: {gbdt['log_loss'].mean():.5f}")
 
 

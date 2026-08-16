@@ -6,6 +6,7 @@ from dataclasses import asdict, fields
 from pathlib import Path
 import sys
 import unittest
+import warnings
 
 import numpy as np
 import torch
@@ -384,3 +385,111 @@ class TestZeroHopControl(unittest.TestCase):
             data.edge_attr = torch.randn(4, 10) * 10
             after = model.encode(data)
         torch.testing.assert_close(before, after)
+
+
+class TestTemperatureRobustness(unittest.TestCase):
+    """A failed calibration must degrade to T=1, never to NaN.
+
+    A non-finite temperature is the worst kind of bug here: it is silent, and it
+    poisons every probability in the run - including phases the fit never saw,
+    because the temperature is applied globally.
+    """
+
+    def test_uninformative_logits_do_not_produce_nan(self):
+        import numpy as np
+        from tennis_gnn.train import fit_temperature
+
+        rng = np.random.default_rng(0)
+        # Logits with essentially no relationship to the labels: the optimal
+        # temperature runs to infinity, which is what breaks an unbounded fit.
+        logits = rng.normal(0, 0.01, size=2000)
+        y = rng.integers(0, 2, size=2000).astype(float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            temperature = fit_temperature(logits, y)
+        self.assertTrue(np.isfinite(temperature))
+        self.assertGreater(temperature, 0.0)
+
+    def test_constant_labels_do_not_produce_nan(self):
+        import numpy as np
+        from tennis_gnn.train import fit_temperature
+
+        logits = np.linspace(-1.0, 1.0, 500)
+        for value in (0.0, 1.0):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                temperature = fit_temperature(logits, np.full(500, value))
+            self.assertTrue(np.isfinite(temperature), f"y={value}")
+            self.assertGreater(temperature, 0.0)
+
+    def test_well_separated_logits_still_calibrate_near_one(self):
+        import numpy as np
+        from tennis_gnn.train import fit_temperature
+
+        rng = np.random.default_rng(1)
+        y = rng.integers(0, 2, size=4000).astype(float)
+        # Already well-calibrated logits should need almost no rescaling.
+        logits = np.where(y > 0, 1.0, -1.0) + rng.normal(0, 1.4, size=4000)
+        temperature = fit_temperature(logits, y)
+        self.assertTrue(np.isfinite(temperature))
+        self.assertGreater(temperature, 0.2)
+        self.assertLess(temperature, 5.0)
+
+
+class TestNoMessagePassingControl(unittest.TestCase):
+    """disable_message_passing must remove messages and nothing else."""
+
+    def _data(self):
+        import torch
+        from torch_geometric.data import Data
+
+        torch.manual_seed(0)
+        x = torch.randn(6, 18)
+        data = Data(
+            x=x,
+            edge_index=torch.tensor([[0, 1, 2, 3], [1, 0, 3, 2]], dtype=torch.long),
+            edge_attr=torch.randn(4, 10),
+        )
+        data.raw_bscore_general = x[:, 0].clone()
+        return data
+
+    def _model(self, **flags):
+        from dataclasses import replace
+        from tennis_gnn.config import BASE_MODEL
+        from tennis_gnn.model import TennisGNN
+
+        config = replace(BASE_MODEL, **flags)
+        return TennisGNN(
+            config, node_in_dim=6, edge_in_dim=10,
+            match_context_dim=6, hidden_dim=16,
+        )
+
+    def test_edges_are_ignored(self):
+        import torch
+
+        data = self._data()
+        model = self._model(disable_message_passing=True).eval()
+        with torch.no_grad():
+            before = model.encode(data).clone()
+            data.edge_index = torch.tensor(
+                [[0, 2, 4, 5], [5, 4, 2, 0]], dtype=torch.long
+            )
+            data.edge_attr = torch.randn(4, 10) * 10
+            after = model.encode(data)
+        torch.testing.assert_close(before, after)
+
+    def test_keeps_the_same_parameters_as_the_graph_model(self):
+        """The control must differ from the real model only in its input."""
+        control = self._model(disable_message_passing=True)
+        graph = self._model()
+        self.assertEqual(
+            {n: tuple(p.shape) for n, p in control.named_parameters()},
+            {n: tuple(p.shape) for n, p in graph.named_parameters()},
+        )
+        self.assertEqual(len(control.norms), len(graph.norms))
+
+    def test_differs_from_zero_hop_which_drops_normalisation(self):
+        zero_hop = self._model(num_layers=0)
+        control = self._model(disable_message_passing=True)
+        self.assertEqual(len(zero_hop.norms), 0)
+        self.assertEqual(len(control.norms), 2)

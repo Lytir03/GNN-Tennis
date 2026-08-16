@@ -68,6 +68,10 @@ class ModelConfig:
     # if two hops beat one hop on two-hop-connected matches, the graph earns
     # its place; if not, no subgroup correlation can rescue it.
     num_layers: int = 2
+    # The proper "no graph" control: same layers, same parameters, same
+    # normalisation, no messages.  Preferred over num_layers=0, which removes
+    # the LayerNorms as well and therefore does not isolate message passing.
+    disable_message_passing: bool = False
 
     def __post_init__(self) -> None:
         if self.aggregation not in {"sum", "mean"}:
@@ -169,7 +173,12 @@ def one_factor_ablations() -> Mapping[str, ModelConfig]:
         # restricts the model to each player's own opponents, which is the
         # information the GBDT already has; three hops checks that two is not
         # simply too shallow.
+        # zero_hop deletes the LayerNorms too, so it is NOT a clean control;
+        # kept only to document that.  Use no_message_passing instead.
         "zero_hop": replace(BASE_MODEL, num_layers=0),
+        "no_message_passing": replace(
+            BASE_MODEL, disable_message_passing=True
+        ),
         "one_hop": replace(BASE_MODEL, num_layers=1),
         "three_hop": replace(BASE_MODEL, num_layers=3),
         # Match context available to the decoder.

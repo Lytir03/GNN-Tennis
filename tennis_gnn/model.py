@@ -133,11 +133,21 @@ class TennisGNN(nn.Module):
             std = torch.where(std < 1e-6, torch.ones_like(std), std)
             x[:, :5] = (continuous - mean) / std
 
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+        if self.config.disable_message_passing:
+            # Keep every layer, parameter and normalisation, and remove only the
+            # messages.  This is the honest "no graph" control: setting
+            # num_layers=0 would also delete the LayerNorms, so a difference
+            # against it confounds message passing with normalisation - and with
+            # unnormalised node features (height is ~185 against B-scores under
+            # 1) that confound is large enough to make training diverge.
+            edge_index = edge_index.new_empty((2, 0))
+            edge_attr = edge_attr.new_empty((0, edge_attr.shape[1]))
+
         h = self.node_encoder(x)
         for convolution, norm in zip(self.convolutions, self.norms):
-            message = norm(
-                F.relu(convolution(h, data.edge_index, data.edge_attr))
-            )
+            message = norm(F.relu(convolution(h, edge_index, edge_attr)))
             h = h + message if self.config.residual_connections else message
         return h
 

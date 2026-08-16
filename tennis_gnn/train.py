@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, replace
 from typing import Iterable, Sequence
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -89,12 +90,29 @@ def fit_temperature(
 
     def closure():
         optimizer.zero_grad()
-        loss = criterion(logit_tensor / log_temperature.exp(), target)
+        # Clamped inside the objective as well as after: when the logits carry
+        # almost no signal the optimal temperature runs away to infinity, and
+        # an unbounded log-temperature lets LBFGS step into overflow and return
+        # NaN.  A NaN here is silent and total - it turns every probability in
+        # the run into NaN, including phases the fit never touched.
+        scaled = logit_tensor / log_temperature.clamp(-4.0, 4.0).exp()
+        loss = criterion(scaled, target)
         loss.backward()
         return loss
 
     optimizer.step(closure)
-    return float(log_temperature.exp().item())
+    temperature = float(log_temperature.clamp(-4.0, 4.0).exp().item())
+    if not np.isfinite(temperature) or temperature <= 0.0:
+        # Calibration failing is recoverable; silently emitting NaN is not.
+        # T=1 is the identity, so the run degrades to uncalibrated output.
+        warnings.warn(
+            "Temperature fit did not converge to a finite positive value; "
+            "falling back to T=1 (uncalibrated).",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return 1.0
+    return temperature
 
 
 def run_experiment(

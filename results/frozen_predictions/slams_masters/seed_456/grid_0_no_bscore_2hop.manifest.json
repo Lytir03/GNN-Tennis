@@ -13,13 +13,13 @@
       "node_bscore_features": false,
       "node_history_features": false,
       "normalize_node_features": false,
-      "num_layers": 1,
+      "num_layers": 2,
       "residual_connections": false,
       "rich_match_context": true,
       "tournament_context_edges": false
     },
     "optimiser_steps": 1344,
-    "temperature": 1.152557134628296,
+    "temperature": 0.9925534725189209,
     "training": {
       "calibrate": true,
       "dropout": 0.3,
@@ -36,7 +36,7 @@
     }
   },
   "evaluation_hash": "4e202153c637758b5f00f47f00c567b519ab78ca64dca62813577828a8607bd6",
-  "experiment": "grid_0_no_bscore_1hop",
+  "experiment": "grid_0_no_bscore_2hop",
   "model_family": "TennisGNN[gine]",
   "row_count": 10212,
   "seed": 456,

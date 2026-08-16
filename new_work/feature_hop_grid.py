@@ -1,5 +1,11 @@
 """Feature richness x receptive field: does the graph substitute for history?
 
+The "none" column keeps every layer, parameter and LayerNorm and removes only
+the messages.  An earlier version used num_layers=0, which also deletes the
+normalisation - with height (~185) unnormalised beside B-scores (<1), that
+made the B-score tier diverge to 2.89 log loss.  A control has to remove one
+thing.
+
 The hop count is the intervention and the feature tier is the moderator.  Read
 the grid down a column: as the model is given more per-player information, the
 value of message passing should fall to zero and then go negative, because the
@@ -74,7 +80,7 @@ TIERS = {
     },
 }
 
-HOPS = (0, 1, 2)
+HOPS = ("none", 1, 2)
 
 # Cells already computed under exactly these settings; reused rather than rerun.
 EXISTING = {
@@ -82,7 +88,6 @@ EXISTING = {
     ("1_bscore", 2): "gnn_tuned",
     ("2_history_nodes", 1): "gnn_history_tuned_one_hop",
     ("2_history_nodes", 2): "gnn_history_tuned",
-    ("3_history_decoder", 0): "gnn_decoder_zero_hop",
     ("3_history_decoder", 1): "gnn_decoder_one_hop",
     ("3_history_decoder", 2): "gnn_decoder",
 }
@@ -103,7 +108,11 @@ def main() -> None:
 
     for tier, hops in todo:
         spec = TIERS[tier]
-        config = replace(spec["model"], num_layers=hops)
+        config = (
+            replace(spec["model"], num_layers=1, disable_message_passing=True)
+            if hops == "none"
+            else replace(spec["model"], num_layers=hops)
+        )
         name = artifact_name(tier, hops)
         for seed in SEEDS:
             start = time.time()
@@ -133,7 +142,7 @@ def main() -> None:
         for hops in HOPS:
             row[f"{hops}_hop"] = means.loc[artifact_name(tier, hops), "log_loss"]
         # The quantity the thesis is about: what message passing is worth.
-        row["gain_1_vs_0"] = row["1_hop"] - row["0_hop"]
+        row["gain_1_vs_none"] = row["1_hop"] - row["none_hop"]
         row["gain_2_vs_1"] = row["2_hop"] - row["1_hop"]
         rows.append(row)
 

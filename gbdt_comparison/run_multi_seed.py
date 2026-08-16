@@ -27,7 +27,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--scope",
-        choices=("slams", "slams_masters"),
+        choices=("slams", "slams_masters", "full"),
         default="slams_masters",
     )
     parser.add_argument(

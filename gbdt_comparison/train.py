@@ -14,6 +14,9 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 
 from features import build_feature_dataset, model_feature_columns
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tennis_gnn.data import SCOPE_FILES  # noqa: E402
+
 
 def select_feature_columns(
     frame: pd.DataFrame, feature_set: str
@@ -69,6 +72,7 @@ def run(
     rebuild_features: bool,
     feature_set: str,
 ) -> None:
+    _split = SCOPE_FILES[scope][2]
     output = project_root / "gbdt_comparison" / "results" / scope
     output.mkdir(parents=True, exist_ok=True)
     # Pickle preserves floating-point values exactly.  CSV round-trips can
@@ -210,9 +214,9 @@ def run(
             model_family="HistGradientBoostingClassifier",
             tournament_scope=scope,
             seed=seed,
-            train_end=2015,
-            validation_end=2016,
-            test_end=2020,
+            train_end=_split.train_end,
+            validation_end=_split.val_end,
+            test_end=int(_split.rolling_end[:4]) - 1,
             update_phases=("train",),
             config={
                 "selection_metric": "validation_log_loss",
@@ -233,7 +237,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--scope",
-        choices=("slams", "slams_masters"),
+        choices=("slams", "slams_masters", "full"),
         default="slams_masters",
     )
     parser.add_argument("--seed", type=int, default=42)

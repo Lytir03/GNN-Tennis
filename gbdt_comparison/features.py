@@ -25,6 +25,10 @@ from tennis_gnn.history import (  # noqa: E402
     HistoricalPerformance,
     aggregate_history,
 )
+# The split lives in one place.  Redefining the phase boundaries here is exactly
+# the drift that made the temporal experiment incomparable.
+from tennis_gnn.data import SCOPE_FILES  # noqa: E402
+from tennis_gnn.data import phase_for_year as _phase_for_year  # noqa: E402
 
 
 ROUND_ORDER = {
@@ -45,12 +49,19 @@ SCORE_COLUMNS = (
 
 
 class BScoreSnapshots:
-    def __init__(self, processed_directory: Path):
-        general = pd.read_csv(processed_directory / "bscore_snapshots.csv")
+    def __init__(self, processed_directory: Path, suffix: str = ""):
+        # The suffix selects the scope's snapshots.  Without it a full-scope run
+        # would silently read the Slam+Masters B-scores and score most players
+        # from the percentile default - a failure that produces plausible
+        # numbers and no error.
+        general = pd.read_csv(
+            processed_directory / f"bscore_snapshots{suffix}.csv"
+        )
         merged = general.copy()
         for surface in ("hard", "clay", "grass"):
             frame = pd.read_csv(
-                processed_directory / f"bscore_snapshots_{surface}.csv"
+                processed_directory
+                / f"bscore_snapshots_{surface}{suffix}.csv"
             )
             merged = merged.merge(
                 frame,
@@ -152,12 +163,16 @@ def add_pair_features(
         row[f"{prefix}_{name}_abs_diff"] = abs(a_value - b_value)
 
 
-def phase_for_year(year: int) -> str:
-    if year <= 2015:
-        return "train"
-    if year <= 2016:
-        return "val"
-    return "test"
+def phase_for_year(year: int, split=None) -> str:
+    """Phase boundaries, delegated to tennis_gnn.data.
+
+    The GNN warm-up years are never emitted as GBDT rows, so 'warmup' collapses
+    into 'train' here - the same rows either model would call trainable.
+    """
+
+    split = split or SCOPE_FILES["slams_masters"][2]
+    phase = _phase_for_year(year, split)
+    return "train" if phase == "warmup" else phase
 
 
 def build_feature_dataset(
@@ -166,20 +181,23 @@ def build_feature_dataset(
     tournament_scope: str = "slams_masters",
     seed: int = 42,
     start_date: str = "2011-01-01",
-    end_date: str = "2021-01-01",
+    end_date: str | None = None,
     history_years: int = 3,
     alpha_days: float = 365.0,
 ) -> pd.DataFrame:
     """Create one pre-match row per match with block-level leakage protection."""
 
-    if tournament_scope not in {"slams", "slams_masters"}:
-        raise ValueError("tournament_scope must be 'slams' or 'slams_masters'")
+    if tournament_scope not in SCOPE_FILES:
+        raise ValueError(f"scope must be one of {tuple(SCOPE_FILES)}")
+    scope_filename, scope_suffix, split = SCOPE_FILES[tournament_scope]
+    if end_date is None:
+        end_date = split.rolling_end
     root = Path(project_root)
     processed = root / "data" / "processed"
     filename = (
         "atp_matches_slams.csv"
         if tournament_scope == "slams"
-        else "atp_matches_slams_masters.csv"
+        else scope_filename
     )
     matches = pd.read_csv(processed / filename, low_memory=False)
     matches["tourney_id"] = matches["tourney_id"].astype(str)
@@ -194,7 +212,7 @@ def build_feature_dataset(
         kind="stable",
     ).reset_index(drop=True)
 
-    snapshots = BScoreSnapshots(processed)
+    snapshots = BScoreSnapshots(processed, scope_suffix)
     static_players, median_height = build_static_player_table(matches)
     histories: dict[str, deque[HistoricalPerformance]] = defaultdict(deque)
     rng = np.random.default_rng(seed)
@@ -237,7 +255,7 @@ def build_feature_dataset(
                 surface = match.surface
 
                 output: dict[str, Any] = {
-                    "phase": phase_for_year(date.year),
+                    "phase": phase_for_year(date.year, split),
                     "year": date.year,
                     "tourney_date": date,
                     "tourney_id": tourney_id,

@@ -34,6 +34,26 @@ from tennis_gnn.experiment_tracking import (  # noqa: E402
 METRICS = ("accuracy", "log_loss", "brier")
 LOWER_IS_BETTER = {"log_loss": True, "brier": True, "accuracy": False}
 
+# Two-sided 95% critical values of Student's t on n-1 degrees of freedom.
+# This used to be written inline as `2.776 if n == 5 else 1.96`, which is
+# correct at five seeds and badly wrong below it: at three seeds the true
+# value is 4.303, so every interval computed with 1.96 was less than half its
+# honest width.  That matters now that the expensive tiers run at three seeds -
+# an interval that narrow turns noise into significance.
+_T_CRITICAL_95 = {2: 12.706, 3: 4.303, 4: 3.182, 5: 2.776, 6: 2.571, 7: 2.447,
+                  8: 2.365, 9: 2.306, 10: 2.262}
+
+
+def t_critical(n: int) -> float:
+    """95% two-sided t multiplier for ``n`` paired observations."""
+
+    if n < 2:
+        return float("nan")
+    # Beyond the table, a slightly conservative approximation - it sits above
+    # the true value everywhere and converges to 1.96, so it can only widen an
+    # interval, never narrow one.
+    return _T_CRITICAL_95.get(n, 1.96 + 4.0 / n)
+
 
 def artifact_root(scope: str) -> Path:
     return ROOT / "results" / "frozen_predictions" / scope
@@ -141,7 +161,7 @@ def paired_delta(
         standard_error = (
             float(delta.std(ddof=1)) / np.sqrt(n) if n > 1 else float("nan")
         )
-        half_width = 2.776 * standard_error if n == 5 else 1.96 * standard_error
+        half_width = t_critical(n) * standard_error
         rows.append(
             {
                 "metric": metric,

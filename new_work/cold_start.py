@@ -1,0 +1,188 @@
+"""Stage 5: the headline comparison and the cold-start / intransitivity strata.
+
+Two questions, in the order they have to be asked.
+
+**1. Does the model beat the GBDT at full scope?**  Paired across seeds on
+identical matches and labels.  The winning architecture at the smaller scope
+used *no message passing at all*, so this is reported as what it is: a tabular
+comparison between two models given the same features.
+
+**2. Where, if anywhere, does the graph pay?**  Within one architecture, one
+hop against no messages - an intervention on the receptive field, not a
+correlation with it.  The pre-specified strata are
+
+  * `degree_stratum` - cold start, how many prior opponents the thinner-recorded
+    player has.  The hypothesis: the graph substitutes for a history the model
+    does not have, so it should pay exactly where that history is missing.
+  * `two_hop_only` - no prior meeting, but a shared opponent.  The
+    intransitivity stratum: the only place a two-hop model has information the
+    one-hop tabular features cannot hold.
+  * `common_stratum`, `h2h_stratum` - the finer cuts, reported for completeness.
+
+Both are run at every feature tier that has artifacts, because the whole thesis
+claim is that the graph's value *decays as the features improve*.  A cold-start
+effect that only exists at the poorest tier says something different from one
+that survives to the richest.
+
+Run: python new_work/cold_start.py --scope full
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+import sys
+
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tennis_gnn.compare import paired_delta, per_seed_metrics  # noqa: E402
+from tennis_gnn.config import BASE_MODEL  # noqa: E402
+from tennis_gnn.data import load_dataset  # noqa: E402
+from tennis_gnn.snapshots import load_or_build  # noqa: E402
+from tennis_gnn.stratify import (  # noqa: E402
+    interaction_test,
+    paired_frame,
+    stratum_table,
+)
+from tennis_gnn.structure import add_strata, structure_table  # noqa: E402
+
+# Tier -> (artifact with one hop, artifact with message passing disabled).
+# The pair is what makes the contrast one-factor: same tier, same recipe, same
+# seeds, differing only in whether messages flow.
+HOP_PAIRS = {
+    "0_no_bscore": ("grid_0_no_bscore_1hop", "grid_0_no_bscore_nonehop"),
+    "1_bscore": ("grid_1_bscore_1hop", "grid_1_bscore_nonehop"),
+    "2_history_nodes": (
+        "grid_2_history_nodes_1hop",
+        "grid_2_history_nodes_nonehop",
+    ),
+    "3_history_decoder": (
+        "grid_3_history_decoder_1hop",
+        "grid_3_history_decoder_nonehop",
+    ),
+}
+# The headline: best GNN configuration against the tuned tabular baseline.
+HEADLINE_GNN = "grid_3_history_decoder_nonehop"
+HEADLINE_BASELINE = "gbdt_tuned"
+
+STRATA = ("degree_stratum", "two_hop_only", "common_stratum", "h2h_stratum")
+
+
+def seeds_with(scope: str, *artifacts: str) -> list[int]:
+    """Seeds for which *every* named artifact exists.
+
+    A paired test over a seed that is missing one arm is not paired, so the
+    intersection is taken rather than the union.
+    """
+
+    root = ROOT / "results" / "frozen_predictions" / scope
+    found = []
+    for directory in sorted(root.glob("seed_*")):
+        seed = int(directory.name.removeprefix("seed_"))
+        if all(
+            (directory / f"{name}.manifest.json").is_file() for name in artifacts
+        ):
+            found.append(seed)
+    return sorted(found)
+
+
+def build_structure(scope: str, seed: int) -> pd.DataFrame:
+    """Structural labels for every predicted match.
+
+    The descriptors are symmetric in (a, b) and depend only on the graph, so a
+    single seed's snapshots label every seed - see tennis_gnn/structure.py.
+    """
+
+    dataset = load_dataset(ROOT, scope=scope)
+    # Read the preset from the config rather than naming it here: a stale
+    # literal would build a *second* snapshot cache and label the matches from
+    # a graph no model in the comparison was trained on.
+    snapshots = load_or_build(
+        ROOT, dataset, BASE_MODEL.edge_preset, seed=seed, verbose=False
+    )
+    table = add_strata(structure_table(snapshots))
+    return table[table["phase"] == "test"]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scope", default="full")
+    parser.add_argument("--structure-seed", type=int, default=42)
+    parser.add_argument("--output-dir", default="new_work/results")
+    args = parser.parse_args()
+    scope = args.scope
+    out = ROOT / args.output_dir
+    out.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 72)
+    print(f"1. HEADLINE  {HEADLINE_GNN} vs {HEADLINE_BASELINE}  [{scope}]")
+    print("=" * 72)
+    headline_seeds = seeds_with(scope, HEADLINE_GNN, HEADLINE_BASELINE)
+    print(f"seeds: {headline_seeds}\n")
+    per_seed = per_seed_metrics(
+        scope, headline_seeds, [HEADLINE_GNN, HEADLINE_BASELINE]
+    )
+    print(per_seed.to_string(index=False))
+    headline = paired_delta(per_seed, HEADLINE_GNN, HEADLINE_BASELINE)
+    print("\npaired (negative log loss delta = GNN better):")
+    print(headline.to_string(index=False))
+    headline.to_csv(out / f"headline_{scope}.csv", index=False)
+
+    print("\n" + "=" * 72)
+    print("2. WHERE THE GRAPH PAYS  (1 hop vs messages disabled, per tier)")
+    print("=" * 72)
+    structure = build_structure(scope, args.structure_seed)
+    print(f"structure table: {len(structure)} test matches\n")
+
+    stratum_rows, interaction_rows = [], []
+    for tier, (candidate, baseline) in HOP_PAIRS.items():
+        seeds = seeds_with(scope, candidate, baseline)
+        if len(seeds) < 2:
+            print(f"-- {tier}: skipped, {len(seeds)} paired seed(s)\n")
+            continue
+        data = paired_frame(
+            ROOT, scope, seeds, candidate, baseline, structure
+        )
+        print(f"-- {tier}  seeds {seeds}  (negative = one hop better)")
+        for stratum in STRATA:
+            table = stratum_table(data, stratum)
+            table.insert(0, "tier", tier)
+            table.insert(1, "by", stratum)
+            stratum_rows.append(table)
+            print(f"\n  by {stratum}:")
+            print("   " + table.to_string(index=False).replace("\n", "\n   "))
+            # An interaction is only defined for a two-level cut; the ordered
+            # cuts are described by the table above, not by a single contrast.
+            if table["stratum"].nunique() == 2:
+                contrast = interaction_test(data, stratum)
+                contrast.insert(0, "tier", tier)
+                contrast.insert(1, "by", stratum)
+                interaction_rows.append(contrast)
+                print(
+                    "   interaction: "
+                    + contrast.to_string(index=False).replace("\n", "\n   ")
+                )
+        print()
+
+    if stratum_rows:
+        frame = pd.concat(stratum_rows, ignore_index=True)
+        frame.to_csv(out / f"strata_{scope}.csv", index=False)
+        print(f"Wrote {out / f'strata_{scope}.csv'}")
+        comparisons = len(frame)
+        print(
+            f"\n{comparisons} stratum comparisons were computed.  No "
+            "multiplicity correction is applied;\nread any single starred cell "
+            "as a hypothesis, not a result, unless it was pre-specified."
+        )
+    if interaction_rows:
+        frame = pd.concat(interaction_rows, ignore_index=True)
+        frame.to_csv(out / f"interactions_{scope}.csv", index=False)
+        print(f"Wrote {out / f'interactions_{scope}.csv'}")
+
+
+if __name__ == "__main__":
+    main()

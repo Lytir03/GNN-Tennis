@@ -103,6 +103,17 @@ def add_strata(frame: pd.DataFrame) -> pd.DataFrame:
         bins=[-0.5, 0.5, 4.5, 14.5, float("inf")],
         labels=["0", "1-4", "5-14", "15+"],
     )
+    # Cold start.  `degree_min` is the number of distinct prior opponents of
+    # the *thinner-recorded* of the two players, so it measures how much of a
+    # per-player history either model could possibly have.  The 0-5 cut is the
+    # one the smaller-scope analysis used and is carried over unchanged, so
+    # this is a pre-specified stratum here rather than a fresh search.
+    frame["degree_stratum"] = pd.cut(
+        frame["degree_min"],
+        bins=[-0.5, 5.5, 20.5, float("inf")],
+        labels=["0-5 (cold)", "6-20", "21+"],
+    )
+    frame["cold_start"] = frame["degree_min"] <= 5
     # The hypothesis stratum: no direct meeting, so head-to-head cannot help,
     # but the two players are joined through shared opponents.  This is where a
     # two-hop model has information the one-hop tabular features do not.

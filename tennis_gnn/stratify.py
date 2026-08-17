@@ -38,6 +38,10 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 from tennis_gnn.experiment_tracking import (  # noqa: E402
     load_prediction_artifact,
 )
+# One definition of the t multiplier for the whole project.  It lived here as
+# `2.776 if count == 5 else 1.96`, which silently used a normal quantile at
+# three seeds and made every three-seed interval less than half its true width.
+from tennis_gnn.compare import t_critical  # noqa: E402
 
 
 KEY = ["block_idx", "row_in_block"]
@@ -117,9 +121,7 @@ def stratum_table(data: pd.DataFrame, by: str) -> pd.DataFrame:
         count = len(deltas)
         if count < 2:
             continue
-        half = (2.776 if count == 5 else 1.96) * deltas.std(ddof=1) / np.sqrt(
-            count
-        )
+        half = t_critical(count) * deltas.std(ddof=1) / np.sqrt(count)
         mean = float(deltas.mean())
         rows.append(
             {
@@ -156,9 +158,7 @@ def interaction_test(data: pd.DataFrame, by: str) -> pd.DataFrame:
     left, right = per_seed.columns
     contrast = (per_seed[right] - per_seed[left]).dropna().to_numpy()
     count = len(contrast)
-    half = (2.776 if count == 5 else 1.96) * contrast.std(ddof=1) / np.sqrt(
-        count
-    )
+    half = t_critical(count) * contrast.std(ddof=1) / np.sqrt(count)
     mean = float(contrast.mean())
     return pd.DataFrame(
         [

@@ -129,6 +129,40 @@ way. Both are limitations of this run, not findings:
 Tiers run in value order (3, then 1, 0, 2) so that an interruption still leaves
 the headline and the substitution curve's endpoints intact.
 
+### The 2-hop row is mostly the recipe, and here is the proof
+
+Limitation (1) above was not left as a caveat. The tier-3 grid row reported
+`gain_2_vs_1 = +0.02368` — apparently a large penalty for the second hop. Two
+hops touch far more of the graph per update, so a learning rate selected at one
+hop on a five-times-smaller dataset is the first thing that should be suspected.
+
+`new_work/twohop_diagnostic.py` reruns the identical 2-hop model on the same
+seeds and data, changing **only** the learning rate, 3e-4 → 1e-4:
+
+| arm | seed 42 | seed 123 |
+|---|---:|---:|
+| 1 hop, lr 3e-4 (grid) | 0.62157 | 0.62011 |
+| 2 hop, lr 3e-4 (grid) | 0.64515 | 0.63808 |
+| **2 hop, lr 1e-4** | **0.62888** | **0.62523** |
+
+Lowering the step size recovers **0.0146 of the 0.0237** — roughly 60% of the
+apparent depth penalty was the recipe, not the depth. Per-run times also
+stabilised (1039s/1047s against 1054–6839s under the old rate).
+
+**How to read the grid row.** `gain_2_vs_1 = +0.02368` is an upper bound on the
+2-hop penalty under a recipe held fixed across the hop axis. It is a valid
+one-factor contrast — the recipe *is* held fixed, which is what the design
+requires — but it is not a depth measurement, and must not be reported as one.
+A residual **+0.0062** penalty survives the rate change on these two seeds, so
+the second hop still looks unhelpful at this feature tier; two seeds is a
+diagnostic, not an estimate, so no corrected effect size is quoted.
+
+This is the same failure mode as the earlier `num_layers=0` control: an
+intervention that quietly changed a second thing. It was caught here only
+because the runtime blew up alongside the loss.
+
+---
+
 **Do not compare full-scope numbers with Slam+Masters ones.** The wider scope is
 a harder problem - the GBDT falls from 0.6015 to 0.6249 - because ATP 250/500
 draws bring weaker and less-recorded players. Only within-scope contrasts mean

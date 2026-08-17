@@ -1,0 +1,50 @@
+{
+  "config": {
+    "ensemble_members": 1,
+    "model": {
+      "aggregation": "sum",
+      "antisymmetric_decoder": true,
+      "attention_heads": 4,
+      "conv_type": "gine",
+      "direct_bscore_logit": true,
+      "disable_message_passing": false,
+      "edge_preset": "full",
+      "history_to_decoder": true,
+      "node_bscore_features": true,
+      "node_history_features": false,
+      "normalize_node_features": false,
+      "num_layers": 2,
+      "residual_connections": false,
+      "rich_match_context": true,
+      "tournament_context_edges": false
+    },
+    "optimiser_steps": 6936,
+    "temperature": 1.1927034854888916,
+    "training": {
+      "calibrate": true,
+      "dropout": 0.3,
+      "grad_clip": null,
+      "hidden_dim": 32,
+      "init_seed": null,
+      "learning_rate": 0.0001,
+      "passes": 1,
+      "replay_batch_size": 32,
+      "replay_buffer_size": 200,
+      "seed": 42,
+      "steps_per_block": 4,
+      "weight_decay": 0.0001
+    }
+  },
+  "evaluation_hash": "258f9028c8c594f1ef76b2ca7c8dd5bbf63c1df4862eb7b5ef60c4df16f481c0",
+  "experiment": "diag_2hop_lr1e4",
+  "model_family": "TennisGNN[gine]",
+  "row_count": 35474,
+  "seed": 42,
+  "test_end": 2024,
+  "tournament_scope": "full",
+  "train_end": 2016,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2018
+}

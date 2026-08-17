@@ -95,7 +95,20 @@ def build_structure(scope: str, seed: int) -> pd.DataFrame:
 
     The descriptors are symmetric in (a, b) and depend only on the graph, so a
     single seed's snapshots label every seed - see tennis_gnn/structure.py.
+
+    Cached to CSV because building it loads the whole snapshot file, which is
+    3.9 GB at full scope.  On a 24 GB machine that cannot be done alongside a
+    training run without swapping, and swapping here cost a sixfold slowdown
+    once already.  With the cache, every later stratified analysis is cheap.
     """
+
+    # The cache holds the raw descriptors; the stratum cuts are re-applied on
+    # read, both because they are cheap and because round-tripping an ordered
+    # categorical through CSV loses its order and would scramble the tables.
+    cache = ROOT / ".cache" / "structure" / f"{scope}__test.csv"
+    if cache.is_file():
+        print(f"structure: reusing {cache}")
+        return add_strata(pd.read_csv(cache))
 
     dataset = load_dataset(ROOT, scope=scope)
     # Read the preset from the config rather than naming it here: a stale
@@ -104,8 +117,12 @@ def build_structure(scope: str, seed: int) -> pd.DataFrame:
     snapshots = load_or_build(
         ROOT, dataset, BASE_MODEL.edge_preset, seed=seed, verbose=False
     )
-    table = add_strata(structure_table(snapshots))
-    return table[table["phase"] == "test"]
+    table = structure_table(snapshots)
+    table = table[table["phase"] == "test"]
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(cache, index=False)
+    print(f"structure: wrote {cache}")
+    return add_strata(table)
 
 
 def main() -> None:

@@ -70,14 +70,20 @@ CONTRASTS = {
     # grid's tier-3 2-hop cells used a rate that is unstable at this scope.  See
     # new_work/depth_test.py.  Only tier 3 has these artifacts; other tiers are
     # skipped for want of a paired seed, which is the correct behaviour.
+    "1_vs_none_stable": None,
     "2_vs_1_stable": None,
 }
 
+# Both arms retrained at lr 1e-4 so the contrast is one-factor.  Only tier 3 has
+# these; other tiers are skipped for want of a paired seed, which is correct.
+_STABLE = "depth_3_history_decoder_{}_lr1e4"
 STABLE_DEPTH_NAMES = {
-    "3_history_decoder": (
-        "depth_3_history_decoder_2hop_lr1e4",
-        "depth_3_history_decoder_1hop_lr1e4",
-    )
+    "1_vs_none_stable": {
+        "3_history_decoder": (_STABLE.format("1hop"), _STABLE.format("nonehop"))
+    },
+    "2_vs_1_stable": {
+        "3_history_decoder": (_STABLE.format("2hop"), _STABLE.format("1hop"))
+    },
 }
 
 
@@ -92,7 +98,7 @@ def hop_pairs(scope: str, contrast: str) -> dict[str, tuple[str, str]]:
     """
 
     if CONTRASTS[contrast] is None:
-        return dict(STABLE_DEPTH_NAMES)
+        return dict(STABLE_DEPTH_NAMES[contrast])
     candidate_hops, baseline_hops = CONTRASTS[contrast]
     return {
         tier: (

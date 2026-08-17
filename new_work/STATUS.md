@@ -207,6 +207,44 @@ unchanged from the smaller scope); the rest are descriptive.
 
 ---
 
+## The substitution curve, both scopes
+
+This is the thesis figure, and it is the result that held up.
+
+`gain_1_vs_none` — what one hop of message passing is worth, by how much
+per-player information the model already has. Negative means the graph helped.
+
+| tier | Slam+Masters (5 seeds) | full scope |
+|---|---:|---:|
+| 0 — no B-score, no history | −0.08125 | **−0.06171** (3) |
+| 1 — B-score + static | −0.01418 | **−0.01355** (3) |
+| 2 — + history on nodes | +0.00689 | *queued* |
+| 3 — + history at decoder | +0.00002 | **+0.00047** (5) |
+
+Monotone decay through zero, the same shape and similar magnitudes on 2.7× the
+data and a different tournament population. **The graph's value is a decreasing
+function of how well the model is already informed about the two players**, and
+it reaches zero once the twelve history features are supplied.
+
+The left endpoint deserves its own sentence, because it is the cleanest thing in
+the project. At tier 0 the no-message model scores **exactly 0.693147** — the
+coin flip — under every recipe tried, because height and handedness carry
+nothing and the antisymmetric decoder represents "no difference" exactly. One
+hop on the same features scores 0.631. There, the graph is not helping the
+features; **the graph is the only feature there is.**
+
+**What did not replicate is the depth axis.** `gain_2_vs_1` is positive at every
+tier at full scope (+0.0013 / +0.0023 / +0.0237) where it was negative at tiers 0
+and 1 at Slam+Masters (−0.0086 / −0.0081). The second hop never helps on the
+tour-wide data. Tier 3's +0.0237 is inflated by the unstable recipe and is being
+re-measured properly by `depth_test.py`.
+
+Read together with the intransitivity retraction above, the pattern is
+consistent: **the one-hop substitution effect is robust across scopes; every
+second-hop effect reverses sign when the population changes.**
+
+---
+
 ## Run queue and what is deliberately not run
 
 Strictly sequential — two concurrent jobs on this machine once caused 1.58M

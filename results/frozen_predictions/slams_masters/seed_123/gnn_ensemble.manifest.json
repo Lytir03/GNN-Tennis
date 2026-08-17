@@ -15,7 +15,8 @@
       "tournament_context_edges": false
     },
     "optimiser_steps": null,
-    "temperature": 0.9769289016723632,
+    "temperature": 0.9691483974456787,
+    "temperature_before_recalibration": 0.9769289016723632,
     "training": {
       "calibrate": true,
       "dropout": 0.3,

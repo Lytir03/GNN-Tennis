@@ -2,9 +2,15 @@
 
 The "none" column keeps every layer, parameter and LayerNorm and removes only
 the messages.  An earlier version used num_layers=0, which also deletes the
-normalisation - with height (~185) unnormalised beside B-scores (<1), that
-made the B-score tier diverge to 2.89 log loss.  A control has to remove one
-thing.
+normalisation, and a control has to remove one thing.
+
+That reasoning stands; the evidence originally given for it does not.  The
+`num_layers=0` cell was reported as diverging to 2.89 log loss, and that was
+blamed on unnormalised height (~185) sitting beside B-scores (<1).  It was
+mostly a broken temperature fit - see `new_work/recalibrate.py`.  Repaired, the
+cell scores 0.652 against the honest control's 0.624: still worse, not
+divergent.  The control is right for the reason stated in the first paragraph,
+which is a design argument and needs no dramatic number behind it.
 
 The hop count is the intervention and the feature tier is the moderator.  Read
 the grid down a column: as the model is given more per-player information, the

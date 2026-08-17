@@ -493,3 +493,79 @@ class TestNoMessagePassingControl(unittest.TestCase):
         control = self._model(disable_message_passing=True)
         self.assertEqual(len(zero_hop.norms), 0)
         self.assertEqual(len(control.norms), 2)
+
+
+class TestTemperatureRecoversKnownScaling(unittest.TestCase):
+    """The fit must find the optimum on *both* sides of T=1.
+
+    The failure this locks down: `fit_temperature` ran LBFGS without a line
+    search, so on an under-confident model - where the optimum is below one - it
+    stepped straight past the minimum to the clamp at T=0.0183.  Every such
+    model in the project went uncalibrated, and several were made far worse than
+    if calibration had been skipped: one cell was assigned T=0.0183 and scored
+    2.89 test log loss where the correct fit gives 0.65.
+
+    Generating data at a known temperature and requiring the fit to recover it
+    tests the thing that actually broke, rather than only the NaN guard above.
+    """
+
+    # The overshoot only appears when the logits are small, which is exactly
+    # the regime the affected models were in: the tier-1 no-message cell had a
+    # logit standard deviation of 0.148.  A generator using large logits does
+    # not reproduce the bug and would make these tests vacuous.
+    LOGIT_SCALE = 0.3
+
+    @classmethod
+    def _sample(cls, true_temperature: float, seed: int, n: int = 8000):
+        rng = np.random.default_rng(seed)
+        logits = rng.normal(0.0, cls.LOGIT_SCALE, size=n)
+        probability = 1.0 / (1.0 + np.exp(-logits / true_temperature))
+        return logits, (rng.random(n) < probability).astype(float)
+
+    def test_recovers_temperature_above_and_below_one(self):
+        # The range stops at 2: with logits this small, dividing by a larger
+        # temperature leaves so little signal that the temperature stops being
+        # identifiable from 8000 samples, and a loose test there would only be
+        # measuring sampling noise.  The bug lived below 1 in any case.
+        for true_temperature in (0.15, 0.3, 0.6, 1.0, 2.0):
+            logits, y = self._sample(true_temperature, seed=0)
+            fitted = fit_temperature(logits, y)
+            self.assertAlmostEqual(
+                fitted,
+                true_temperature,
+                delta=0.25 * true_temperature,
+                msg=f"true T={true_temperature}, fitted {fitted}",
+            )
+
+    def test_never_lands_on_the_clamp_for_a_well_posed_fit(self):
+        logits, y = self._sample(0.3, seed=1)
+        self.assertGreater(fit_temperature(logits, y), 0.05)
+
+    def test_calibration_never_loses_to_not_calibrating(self):
+        """T=1 is feasible, so a correct fit cannot score worse than it.
+
+        This is the invariant that makes the whole procedure safe, and the one
+        the broken fit violated.  It is checked on the fitting set, where it
+        holds by construction; out of sample it need not.
+        """
+
+        def nll(logits, y, temperature):
+            p = np.clip(1.0 / (1.0 + np.exp(-logits / temperature)), 1e-9, 1 - 1e-9)
+            return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
+
+        rng = np.random.default_rng(2)
+        cases = [
+            self._sample(0.2, seed=3),
+            self._sample(5.0, seed=4),
+            (rng.normal(0, 0.05, 3000), rng.integers(0, 2, 3000).astype(float)),
+            (rng.normal(0, 8.0, 3000), rng.integers(0, 2, 3000).astype(float)),
+        ]
+        for index, (logits, y) in enumerate(cases):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                fitted = fit_temperature(logits, y)
+            self.assertLessEqual(
+                nll(logits, y, fitted),
+                nll(logits, y, 1.0) + 1e-9,
+                msg=f"case {index}: T={fitted} scored worse than uncalibrated",
+            )

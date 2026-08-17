@@ -1,22 +1,25 @@
 {
   "config": {
-    "ensemble_members": 5,
+    "ensemble_members": 1,
     "model": {
       "aggregation": "sum",
       "antisymmetric_decoder": true,
       "attention_heads": 4,
       "conv_type": "gine",
       "direct_bscore_logit": true,
+      "disable_message_passing": false,
       "edge_preset": "full",
+      "history_to_decoder": false,
       "node_bscore_features": true,
+      "node_history_features": false,
       "normalize_node_features": false,
+      "num_layers": 1,
       "residual_connections": false,
       "rich_match_context": true,
       "tournament_context_edges": false
     },
-    "optimiser_steps": null,
-    "temperature": 0.9665055871009827,
-    "temperature_before_recalibration": 0.9741693377494812,
+    "optimiser_steps": 6936,
+    "temperature": 1.0309827327728271,
     "training": {
       "calibrate": true,
       "dropout": 0.3,
@@ -32,16 +35,16 @@
       "weight_decay": 0.0001
     }
   },
-  "evaluation_hash": "85e646e5c15e3305c40150ed474ba30dfc430fff63c9b4a517526ce4e14e112b",
-  "experiment": "gnn_ensemble",
+  "evaluation_hash": "258f9028c8c594f1ef76b2ca7c8dd5bbf63c1df4862eb7b5ef60c4df16f481c0",
+  "experiment": "grid_1_bscore_1hop",
   "model_family": "TennisGNN[gine]",
-  "row_count": 10212,
+  "row_count": 35474,
   "seed": 42,
-  "test_end": 2020,
-  "tournament_scope": "slams_masters",
-  "train_end": 2015,
+  "test_end": 2024,
+  "tournament_scope": "full",
+  "train_end": 2016,
   "update_phases": [
     "train"
   ],
-  "validation_end": 2016
+  "validation_end": 2018
 }

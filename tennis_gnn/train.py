@@ -85,7 +85,16 @@ def fit_temperature(
     logit_tensor = torch.tensor(logits, dtype=torch.float)
     target = torch.tensor(y, dtype=torch.float)
     log_temperature = torch.zeros(1, requires_grad=True)
-    optimizer = torch.optim.LBFGS([log_temperature], lr=0.1, max_iter=max_iter)
+    # Without a line search, LBFGS takes fixed-size steps and overshoots: on a
+    # model that is *under*-confident (the optimum is T < 1) it ran straight
+    # past the minimum to the clamp at T=0.0183 every time, so no under-confident
+    # model in this project was ever calibrated.  Strong-Wolfe fixes it.
+    optimizer = torch.optim.LBFGS(
+        [log_temperature],
+        lr=0.1,
+        max_iter=max_iter,
+        line_search_fn="strong_wolfe",
+    )
     criterion = nn.BCEWithLogitsLoss()
 
     def closure():
@@ -108,6 +117,27 @@ def fit_temperature(
         warnings.warn(
             "Temperature fit did not converge to a finite positive value; "
             "falling back to T=1 (uncalibrated).",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return 1.0
+
+    # T=1 is inside the feasible set, so a correct fit can never be worse than
+    # not calibrating at all.  The clamp breaks that guarantee: it creates a
+    # flat region with zero gradient, and LBFGS can come to rest on the
+    # boundary.  Observed doing exactly that - a model whose logits carried
+    # little signal was assigned T=0.0183, the clamp, which multiplies every
+    # logit by 55 and took validation log loss from 0.64 to 1.16.  Silently
+    # returning a "calibration" that makes the model worse is the failure mode
+    # this guards.
+    with torch.no_grad():
+        fitted_nll = float(criterion(logit_tensor / temperature, target))
+        identity_nll = float(criterion(logit_tensor, target))
+    if not np.isfinite(fitted_nll) or fitted_nll > identity_nll:
+        warnings.warn(
+            f"Temperature fit landed on T={temperature:.4g}, which scores "
+            f"{fitted_nll:.4f} against {identity_nll:.4f} uncalibrated; "
+            "falling back to T=1.",
             RuntimeWarning,
             stacklevel=2,
         )

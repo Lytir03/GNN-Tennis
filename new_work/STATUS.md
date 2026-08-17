@@ -157,9 +157,92 @@ A residual **+0.0062** penalty survives the rate change on these two seeds, so
 the second hop still looks unhelpful at this feature tier; two seeds is a
 diagnostic, not an estimate, so no corrected effect size is quoted.
 
-This is the same failure mode as the earlier `num_layers=0` control: an
-intervention that quietly changed a second thing. It was caught here only
-because the runtime blew up alongside the loss.
+It was caught only because the runtime blew up alongside the loss.
+
+---
+
+## The temperature fit was broken, and it changed one published number
+
+**The defect.** `fit_temperature` ran LBFGS with no line search. Fixed-size
+steps overshoot, so whenever the optimal temperature was *below* one the fit ran
+past it to the clamp at T=0.0183. No under-confident model in this project was
+ever calibrated, and several were made much worse than doing nothing.
+
+Temperature is fitted on validation, where T=1 is always available — so a
+correct fit can never lose to not calibrating. That guarantee is what should
+have caught this years earlier, and it is now enforced: the fitter compares its
+answer to T=1 and falls back with a warning if it lost.
+
+**The repair needs no retraining.** A stored probability is `sigmoid(logit / T)`
+with T in the manifest, so the raw logit comes back exactly as
+`T * log(p / (1-p))`. `new_work/recalibrate.py` inverts, refits, rewrites, and
+asserts `evaluation_hash` is unchanged (it covers keys and labels, never
+probabilities). Checked against retraining the affected cell from scratch: same
+temperature, same log loss, to four decimals.
+
+**What moved.** 18 of 129 artifacts; 111 were already correct.
+
+| cell | T before | T after | test log loss |
+|---|---:|---:|---|
+| `grid_1_bscore_0hop` (5 seeds) | 0.0183 | 0.25–0.34 | 2.89 → **0.652** |
+| `grid_1_bscore_nonehop`, Slam+Masters (5 seeds) | 0.403 | 0.128 | 0.647 → **0.624** |
+| `grid_1_bscore_nonehop`, full (2 seeds) | 0.513 | 0.188 | 0.662 → **0.645** |
+| everything else | ≈1 | ≈1 | moves < 0.0005 |
+
+**What it costs the argument.** One point on the substitution curve, and one
+piece of supporting evidence.
+
+Corrected `gain_1_vs_none` at Slam+Masters, five seeds:
+
+| tier | before | **after** |
+|---|---:|---:|
+| 0 — no B-score, no history | −0.0813 | **−0.0813** |
+| 1 — B-score + static | −0.0367 | **−0.0142** |
+| 2 — + history on nodes | +0.0069 | **+0.0069** |
+| 3 — + history at decoder | +0.0000 | **+0.0000** |
+
+The graph's value at tier 1 was overstated threefold. The shape of the curve —
+monotone decay, crossing zero between tiers 1 and 2 — is unchanged, and so is
+every other tier. **The headline is untouched**: every tier-3 artifact fitted
+T ≈ 1.0–1.2, the regime the bug never entered.
+
+The second casualty is the justification for rejecting `num_layers=0` as a
+control. It was rejected partly because it "diverged to 2.89", blamed on the
+missing LayerNorms. Repaired, it scores 0.652 — worse than the honest control's
+0.624, but not divergent. The design argument for `disable_message_passing`
+stands on its own: a control must remove one thing. The dramatic number was
+never the reason, and should not have been quoted as one.
+
+---
+
+## The two low-feature tiers are converged, not under-trained
+
+A no-message model that predicts near-constantly invites the objection that it
+was simply under-optimised — which would make every hop gain a mix of
+information and optimisation. Tested directly at Slam+Masters, varying only the
+recipe:
+
+| tier 0, no messages | test log loss |
+|---|---:|
+| as run (lr 1e-4, 4 steps) | 0.6931 |
+| 4× steps (16) | 0.6931 |
+| 10× learning rate (1e-3) | 0.6931 |
+| 3 passes | 0.6931 |
+
+Exactly the coin flip under every recipe, with a logit standard deviation of
+1e-8 to 0. This is not a failure to train: with the B-scores zeroed the model
+sees only height and handedness, the antisymmetric decoder can represent "no
+difference" exactly, and that is the correct answer. Give the same architecture
+one hop on the same features and it reaches 0.6119. **At tier 0 the graph
+supplies the entire signal** — which is the cleanest statement of the
+substitution thesis in the project, and also why that row's −0.081 must be
+labelled "against an uninformative baseline" rather than read as what message
+passing is worth in general.
+
+Tier 1 behaves the opposite way: more optimisation makes it sharply *worse*
+(0.647 → 1.30 at 4× steps, → 1.65 at 10× the learning rate). Those runs are the
+ones that drove the calibrator to its clamp, so the recipe held fixed across the
+hop axis is also the only one that trains this tier stably.
 
 ---
 

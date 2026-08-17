@@ -15,7 +15,10 @@ graph's marginal value should decay to zero — and past it — as the features 
 The hop axis is the intervention (within one model family, everything else fixed). The
 feature axis is the moderator. The cell-to-cell differences are the thesis figure.
 
-Run: `python new_work/feature_hop_grid.py` → `new_work/results/feature_hop_grid.csv`
+Run: `python new_work/feature_hop_grid.py --scope {slams_masters,full}`
+→ `new_work/results/feature_hop_grid_<scope>.csv`. The scope is in the filename
+because the two are not comparable; an un-suffixed `feature_hop_grid.csv` from an
+earlier run was deleted rather than left to be mistaken for either.
 
 **Recipe provenance matters and is recorded per tier.** Each feature tier got its own
 validation-only search (`tennis_gnn/tune.py --model ...`), because judging an

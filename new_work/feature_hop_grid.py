@@ -175,17 +175,37 @@ def main() -> None:
     if not complete:
         print("\nNo tier is complete yet; skipping the summary table.")
         return
-    per_seed = per_seed_metrics(scope, list(seeds), sorted(available))
-    means = per_seed.groupby("experiment")[["accuracy", "log_loss"]].mean()
+    # Summarise over every seed that has artifacts, not only the ones this
+    # invocation computed.  Passing three seeds used to *overwrite* a tier's
+    # five-seed row with a three-seed one, silently throwing away precision on
+    # the tier that carries the headline.
+    summary_seeds = sorted(
+        int(directory.name.removeprefix("seed_"))
+        for directory in (
+            ROOT / "results" / "frozen_predictions" / scope
+        ).glob("seed_*")
+    )
+    per_seed = per_seed_metrics(scope, summary_seeds, sorted(available))
+    grouped = per_seed.groupby("experiment")
+    means = grouped[["accuracy", "log_loss"]].mean()
+    counts = grouped.size()
 
     rows = []
     for tier in complete:
         spec = TIERS[tier]
         row = {"tier": spec["label"], "own_recipe": spec["own_recipe"]}
+        tier_counts = set()
         for hops in HOPS:
-            row[f"{hops}_hop"] = means.loc[
-                artifact_name(tier, hops, scope), "log_loss"
-            ]
+            name = artifact_name(tier, hops, scope)
+            row[f"{hops}_hop"] = means.loc[name, "log_loss"]
+            tier_counts.add(int(counts.loc[name]))
+        # Seeds must match across the hop axis or the contrast is not paired.
+        if len(tier_counts) > 1:
+            raise SystemExit(
+                f"{tier}: hop cells cover different seed counts {sorted(tier_counts)};"
+                " a gain computed across them would not be paired."
+            )
+        row["n_seeds"] = tier_counts.pop()
         # The quantity the thesis is about: what message passing is worth.
         row["gain_1_vs_none"] = row["1_hop"] - row["none_hop"]
         row["gain_2_vs_1"] = row["2_hop"] - row["1_hop"]
@@ -197,7 +217,9 @@ def main() -> None:
     grid.to_csv(output, index=False)
 
     print("\n" + "=" * 92)
-    print("FEATURE RICHNESS x RECEPTIVE FIELD (test log loss, 5-seed means)")
+    print(
+        "FEATURE RICHNESS x RECEPTIVE FIELD (test log loss, means over n_seeds)"
+    )
     print("negative gain = more hops helped")
     print("=" * 92)
     print(grid.round(5).to_string(index=False))

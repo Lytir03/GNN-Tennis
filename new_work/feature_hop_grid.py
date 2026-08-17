@@ -186,26 +186,31 @@ def main() -> None:
         ).glob("seed_*")
     )
     per_seed = per_seed_metrics(scope, summary_seeds, sorted(available))
-    grouped = per_seed.groupby("experiment")
-    means = grouped[["accuracy", "log_loss"]].mean()
-    counts = grouped.size()
 
     rows = []
     for tier in complete:
         spec = TIERS[tier]
+        names = [artifact_name(tier, hops, scope) for hops in HOPS]
+        # A gain is a paired quantity, so every hop cell in a tier must be
+        # averaged over the *same* seeds.  Tier 0 has five `none` cells from an
+        # earlier partial run against three hop cells; averaging each over
+        # whatever it happens to have would compare a three-seed mean with a
+        # five-seed one and call the difference an effect.
+        seed_sets = [
+            set(per_seed.loc[per_seed["experiment"] == name, "seed"])
+            for name in names
+        ]
+        shared = sorted(set.intersection(*seed_sets))
+        if len(shared) < 2:
+            print(f"\n{tier}: only {len(shared)} shared seed(s); skipped.")
+            continue
+        paired = per_seed[per_seed["seed"].isin(shared)]
+        means = paired.groupby("experiment")["log_loss"].mean()
+
         row = {"tier": spec["label"], "own_recipe": spec["own_recipe"]}
-        tier_counts = set()
-        for hops in HOPS:
-            name = artifact_name(tier, hops, scope)
-            row[f"{hops}_hop"] = means.loc[name, "log_loss"]
-            tier_counts.add(int(counts.loc[name]))
-        # Seeds must match across the hop axis or the contrast is not paired.
-        if len(tier_counts) > 1:
-            raise SystemExit(
-                f"{tier}: hop cells cover different seed counts {sorted(tier_counts)};"
-                " a gain computed across them would not be paired."
-            )
-        row["n_seeds"] = tier_counts.pop()
+        for hops, name in zip(HOPS, names):
+            row[f"{hops}_hop"] = means.loc[name]
+        row["n_seeds"] = len(shared)
         # The quantity the thesis is about: what message passing is worth.
         row["gain_1_vs_none"] = row["1_hop"] - row["none_hop"]
         row["gain_2_vs_1"] = row["2_hop"] - row["1_hop"]

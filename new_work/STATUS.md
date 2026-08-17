@@ -245,6 +245,65 @@ second-hop effect reverses sign when the population changes.**
 
 ---
 
+## The recipe was hiding the graph — headline corrected
+
+This is the most consequential thing in this file, and it reverses a claim the
+project has carried since the beginning.
+
+**What was claimed.** "The model that beats the GBDT does not use the graph."
+The grid put tier 3 at 0.62022 with message passing disabled against 0.62070 at
+one hop — `gain_1_vs_none = +0.00047`, message passing worth nothing.
+
+**What was wrong with it.** Both cells used lr 3e-4, the recipe selected at the
+smaller scope. The 2-hop diagnostic had already shown that rate is unstable at
+full scope, and the obvious next question — *does it also handicap one hop?* —
+went unasked. Retraining all three arms at lr 1e-4 (`new_work/depth_test.py`):
+
+| arm, tier 3, lr 1e-4 | test log loss (5 seeds) |
+|---|---:|
+| no messages | 0.62015 |
+| **one hop** | **0.61915** |
+| two hops | 0.62857 |
+
+| contrast | Δ log loss | 95% CI | seeds |
+|---|---:|---|---:|
+| **1 hop vs no messages** | **−0.00100** | [−0.00179, −0.00022] | **5/5** |
+| 2 hops vs 1 hop | +0.00942 | [+0.00560, +0.01325] | 0/5 |
+| **1 hop vs GBDT** | **−0.00572** | [−0.00719, −0.00426] | **5/5** |
+
+**Message passing is worth a small but statistically reliable −0.0010 at the
+richest feature tier.** The corrected headline is: *the best model does use the
+graph, one hop of it, and it beats a tuned GBDT by 0.0057 log loss.*
+
+**Why the error was systematic rather than bad luck.** The no-message arm barely
+notices the recipe (−0.00008 between 3e-4 and 1e-4, not significant); the
+message-passing arms gain about 0.0015. A model that ignores its edges has less
+to optimise and is correspondingly insensitive. So holding a badly chosen recipe
+"fixed across the hop axis" is *not* sufficient for a fair contrast — it is fixed
+in name and unequal in effect, and it biases against exactly the arm under test.
+Every hop contrast in this project that used a recipe tuned elsewhere is
+suspect for this reason, and the tier 0 and 1 rows were run at 1e-4 already,
+which is why their conclusions stand.
+
+**What does not change.**
+
+* The GNN still beats the GBDT, by more than reported (−0.0057, not −0.0047).
+* Two hops still hurt, decisively (+0.0094, 0/5 seeds).
+* The substitution curve keeps its shape — this moves tier 3's point from
+  +0.0005 to −0.0010, still far above tier 0's −0.0617 and tier 1's −0.0136.
+* **Cold start still reverses.** At the stable recipe, one hop hurts where the
+  thinner-recorded player has 0–5 opponents (+0.00413, 0/5, significant) and
+  helps at 21+ (−0.00229, 5/5, significant). The mistuned recipe exaggerated the
+  size (+0.0143) but not the direction.
+
+**And the intransitivity test is now conclusive rather than inconclusive.** With
+both arms at a stable recipe, the `two_hop_only` interaction on the 2-vs-1
+contrast is **−0.0001, CI [−0.00278, +0.00259]** — a tight null, not a wide
+shrug. The hypothesis is answered: at the richest feature tier, on tour-wide
+data, relational depth buys nothing.
+
+---
+
 ## Run queue and what is deliberately not run
 
 Strictly sequential — two concurrent jobs on this machine once caused 1.58M

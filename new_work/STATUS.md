@@ -30,63 +30,45 @@ held fixed across the hop axis.
 
 ---
 
-## Task B — Expand the data ⛔ blocked on the B-score pipeline
+## Task B — Expand the data ✅ done
 
-**This is not a "point it at a bigger file" change, and I want to be exact about why.**
+**Done.** The dataset is now the full ATP tour: **49,797 matches / 4,688 blocks**
+against 10,212 before, split train 15,809 / validation 5,325 / test 14,340. The
+validation standard error falls from ≈0.018 to ≈0.008, which is what makes
+effects of a few thousandths resolvable at all.
 
-The prize is real. Raw Sackmann data, 2011–2020:
+**How the blocker was cleared.** B-score snapshots existed only for the 244
+tournaments already in scope, and B-score is not an ordinary feature — it is the
+model's skill prior, added straight to the logit with the head initialised to
+zero. Running without it would have been dilution, not expansion.
 
-| | matches |
-|---|---:|
-| currently used (Slams + Masters) | 10,212 |
-| **available in raw, all ATP** | **27,829** |
+`preprocess/` computed the snapshots across four near-identical
+surface-parameterised notebooks. They are replaced by one parameterised script,
+`new_work/build_bscore.py`, and the risk of changing the definition and the
+scope in the same step was handled by not doing that: `--verify` reproduces the
+published snapshots **exactly** on the old scope (1.54M rows, maximum absolute
+difference 1e-16) before `--scope full` is allowed to widen anything.
 
-A 2.7× expansion. It would fix the noise floor that undermines every selection decision
-in this project (validation SE ≈ 0.018 against effects of ~0.004) *and* multiply the
-cold-start cases that carry the positive finding.
+**Coverage is not a problem, which had to be checked rather than assumed.**
+Across the whole file only 71.5% of match-player slots carry a snapshot, which
+looks alarming until it is split by phase:
 
-**The blocker: B-score snapshots do not exist for most of those matches.**
-
-| tourney level | B-score covered | not covered |
+| phase | B-score coverage | slots |
 |---|---:|---:|
-| A (ATP 250/500) | 2,324 | **12,522** |
-| M (Masters) | 3,909 | 1,350 |
-| G (Slams) | 4,826 | 127 |
-| D (Davis Cup) | 0 | 2,574 |
-| F (Finals) | 0 | 197 |
-| **total** | **11,059** | **16,770** |
+| warmup (2006–2010) | 0.0% | 27,420 |
+| train | 99.10% | 31,618 |
+| validation | 99.12% | 10,650 |
+| **test** | **99.13%** | 28,680 |
 
-B-score is a node feature *and* the model's skill prior — `direct_bscore_logit` adds
-`bscore_scale * (b_a − b_b)` straight to the logit, and the head is initialised to zero
-so the model *starts* as a pure B-score model. Running on matches without B-score means
-falling back to the 25th-percentile default for most players, which would not be an
-expansion so much as a dilution.
+The entire gap is the warm-up years, which are used to build history and are
+never emitted as targets. Every year the models are actually scored on sits at
+99%. The 25th-percentile fallback is doing nothing of consequence.
 
-**What has to happen first.** `preprocess/` computes the B-score snapshots across four
-near-identical surface-parameterised notebooks (`graph.ipynb`, `graph_clay1.ipynb`,
-`graph_grass1.ipynb`, `graph_hard1.ipynb`). They must be re-run over the full tour.
-
-I have deliberately not done this. Those notebooks generate the CSVs every downstream
-result depends on, and I cannot validate a rewrite against the originals without
-re-deriving the whole pipeline — a silent change there would corrupt every number in
-`TUTOR_REPORT.md` without failing anything. That is your call to make, not mine.
-
-**The two routes, and my recommendation.**
-
-1. **Re-run the existing notebooks over the full tour, unchanged in logic.** Lowest risk.
-   Verify by checking the regenerated snapshots reproduce the current values *exactly*
-   on the 244 tournaments already covered — that is a real regression test, and it is
-   cheap.
-2. Rewrite them as one parameterised script. Cleaner, and the four-way duplication is a
-   genuine defect, but it changes and expands at once, so a discrepancy afterwards is
-   ambiguous.
-
-**Do (1) first, expand, confirm the results still hold, and only then consider (2).**
-Never change the definition and the scope in the same step.
-
-A scaffold with the coverage check and the regression test is in
-`new_work/expand_data.py`. It currently *reports* the gap and refuses to proceed rather
-than silently filling B-score with defaults.
+**One caution that is now the binding constraint.** The wider scope is a *harder*
+problem — the GBDT falls from 0.6015 to 0.6249 — because ATP 250/500 draws bring
+weaker and less-recorded players. Only within-scope contrasts mean anything, and
+where the two scopes disagree (see Stage 5) it is the population that changed,
+not just the sample size.
 
 ---
 

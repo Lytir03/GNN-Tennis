@@ -90,6 +90,105 @@ than silently filling B-score with defaults.
 
 ---
 
+## Stage 5 — the headline holds, and the cold-start hypothesis does not
+
+Run: `python new_work/cold_start.py --scope full`
+→ `new_work/results/{headline,strata,interactions}_full.csv`
+
+### The headline strengthens at full scope
+
+`grid_3_history_decoder_nonehop` against `gbdt_tuned`, paired over five seeds on
+identical matches and labels:
+
+| metric | Δ (GNN − GBDT) | 95% CI | seeds won |
+|---|---:|---|---:|
+| log loss | **−0.00465** | [−0.00593, −0.00336] | 5/5 |
+| Brier | **−0.00202** | [−0.00261, −0.00144] | 5/5 |
+| accuracy | **+0.00508** | [+0.00295, +0.00721] | 5/5 |
+
+At Slam+Masters this was a win on probability quality and a *tie* on accuracy.
+At 2.7× the data it is a win on all three. The same caveat as before still
+governs what it means: **the winning configuration has message passing
+disabled**, so this is a tabular comparison between two models given the same
+features, not a demonstration that the graph helps.
+
+### The cold-start hypothesis was tested and it failed
+
+This was the finding the expansion was built to confirm. It was flagged as "a
+hypothesis for the expanded data to confirm, not a settled result", because it
+was found after the main analysis. The expanded data refutes it, and does so
+cleanly.
+
+One hop against no messages, tier 3, five seeds, by how many prior opponents the
+thinner-recorded player has:
+
+| stratum | matches | Δ (1 hop − none) | 95% CI | seeds won |
+|---|---:|---:|---|---:|
+| **0–5 (cold)** | 1404 | **+0.01426** | [+0.00357, +0.02496] | **0/5** * |
+| 6–20 | 2449 | +0.00010 | [−0.00098, +0.00118] | 2/5 |
+| **21+** | 10487 | **−0.00129** | [−0.00241, −0.00016] | **5/5** * |
+
+At Slam+Masters the cold stratum favoured message passing (−0.0048, 5/5). At
+full scope the sign is **reversed** and unanimous the other way: 0/5 seeds, and
+the graph does its only useful work where players are *well* recorded.
+
+**Why this is the more believable direction.** A cold-start node has almost no
+neighbourhood to aggregate. One hop over two or three edges cannot manufacture a
+skill estimate; what it does is dilute the B-score prior, which at that point is
+the only reliable signal the model has. Message passing needs structure to be
+worth anything, and cold start is defined by not having it.
+
+So the graph does not substitute for a missing per-player history. **It
+amplifies a present one.**
+
+### What survives: your intransitivity effect
+
+The dose-response by shared opponents is monotone and points the same way:
+
+| common opponents | matches | Δ (1 hop − none) | seeds won |
+|---|---:|---:|---:|
+| 0 | 920 | **+0.01731** * | 0/5 |
+| 1–4 | 1814 | +0.00188 | 1/5 |
+| 5–14 | 3037 | −0.00057 | 4/5 |
+| 15+ | 8569 | −0.00126 | 5/5 |
+
+And the pre-specified contrast — matches with no prior meeting but a shared
+opponent, against everything else — is significant at full scope:
+
+**interaction = −0.00336, CI [−0.00547, −0.00126], 5 seeds.**
+
+At Slam+Masters this contrast had decayed to −0.0035 and was *not* significant at
+the richest feature tier. Same effect size at full scope, now with the precision
+to resolve it. This is the one relational claim in the project that has survived
+every control and got stronger with more data.
+
+Note the honest reading: `degree_stratum` and `common_stratum` are strongly
+correlated — a player with few opponents has few shared ones — so "helps where
+there are common opponents" and "helps where players are well recorded" are
+probably one phenomenon seen twice, not two findings.
+
+### At poor features, the graph helps everywhere
+
+Tier 1, three seeds, same contrast:
+
+| stratum | Δ (1 hop − none) | seeds won |
+|---|---:|---:|
+| 0–5 (cold) | −0.01670 * | 3/3 |
+| 6–20 | −0.00371 * | 3/3 |
+| 21+ | −0.01542 * | 3/3 |
+
+Every stratum, every seed. When the model has only B-score and static
+attributes, message passing is worth having *including* in cold start. The
+substitution story is therefore alive — it just belongs to the low-feature
+regime, not to cold start. Give the model the history features and the graph's
+contribution collapses to zero overall and turns negative where data is thin.
+
+**24 stratum comparisons were computed with no multiplicity correction.** The
+degree cut and the `two_hop_only` contrast were pre-specified (carried over
+unchanged from the smaller scope); the rest are descriptive.
+
+---
+
 ## Next, after these
 
 3. **Cold start becomes the headline analysis.** The positive result is already

@@ -1,0 +1,3 @@
+tier,by,contrast,n_seeds,difference_of_deltas,ci_low,ci_high,significant
+1_bscore,two_hop_only,(True) minus (False),3,0.005008563136631179,0.002334144660871415,0.007682981612390944,*
+3_history_decoder,two_hop_only,(True) minus (False),5,-0.003361626720545574,-0.005467379466181312,-0.0012558739749098363,*

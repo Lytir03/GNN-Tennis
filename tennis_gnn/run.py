@@ -31,7 +31,7 @@ from tennis_gnn.config import (  # noqa: E402
     TrainConfig,
     one_factor_ablations,
 )
-from tennis_gnn.data import TRAIN_END, VAL_END, load_dataset  # noqa: E402
+from tennis_gnn.data import SCOPE_FILES, load_dataset  # noqa: E402
 from tennis_gnn.snapshots import load_or_build  # noqa: E402
 from tennis_gnn.train import (  # noqa: E402
     metrics,
@@ -107,6 +107,7 @@ def run_named(
             )
         model_config = ablations[name]
 
+    _split = SCOPE_FILES[scope][2]
     dataset = load_dataset(ROOT, scope=scope)
     snapshots = load_or_build(
         ROOT, dataset, model_config.edge_preset, seed=seed, verbose=verbose
@@ -140,9 +141,14 @@ def run_named(
             model_family=f"TennisGNN[{model_config.conv_type}]",
             tournament_scope=scope,
             seed=seed,
-            train_end=TRAIN_END,
-            validation_end=VAL_END,
-            test_end=2020,
+            # Read from the scope's split rather than module constants: with
+            # more than one split in play, hardcoding the original values makes
+            # the manifest describe an experiment that did not happen, and
+            # assert_compatible then refuses to compare artifacts that are in
+            # fact comparable.
+            train_end=_split.train_end,
+            validation_end=_split.val_end,
+            test_end=int(_split.rolling_end[:4]) - 1,
             update_phases=("train",),
             config={
                 "model": asdict(model_config),

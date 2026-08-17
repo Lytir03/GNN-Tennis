@@ -40,11 +40,11 @@
   "model_family": "TennisGNN[gine]",
   "row_count": 35474,
   "seed": 42,
-  "test_end": 2020,
+  "test_end": 2024,
   "tournament_scope": "full",
-  "train_end": 2015,
+  "train_end": 2016,
   "update_phases": [
     "train"
   ],
-  "validation_end": 2016
+  "validation_end": 2018
 }

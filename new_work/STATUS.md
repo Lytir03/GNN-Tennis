@@ -1,11 +1,13 @@
 # New work — where we actually are
 
-Live work. Two tasks were requested here; **one is done, one is blocked** on a
-dependency I did not want to rewrite without telling you.
+Live work, newest sections last. Both original tasks are done — the grid is
+filled and the data is expanded to the full ATP tour — and the analysis that
+followed overturned two findings the smaller scope had supported. Where that
+happened it is written up as a retraction, not quietly amended.
 
 ---
 
-## Task A — Fill the feature × hop grid ✅ running / done
+## Task A — Fill the feature × hop grid ✅ done
 
 **Purpose.** The central claim is that graph structure *substitutes* for per-player
 history rather than adding to it. A single win/loss cannot show that. A grid can: hold

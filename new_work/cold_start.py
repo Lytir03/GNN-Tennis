@@ -66,6 +66,18 @@ from new_work.feature_hop_grid import TIERS, artifact_name  # noqa: E402
 CONTRASTS = {
     "1_vs_none": (1, "none"),
     "2_vs_1": (2, 1),
+    # The same depth contrast with both arms retrained at lr 1e-4, because the
+    # grid's tier-3 2-hop cells used a rate that is unstable at this scope.  See
+    # new_work/depth_test.py.  Only tier 3 has these artifacts; other tiers are
+    # skipped for want of a paired seed, which is the correct behaviour.
+    "2_vs_1_stable": None,
+}
+
+STABLE_DEPTH_NAMES = {
+    "3_history_decoder": (
+        "depth_3_history_decoder_2hop_lr1e4",
+        "depth_3_history_decoder_1hop_lr1e4",
+    )
 }
 
 
@@ -79,6 +91,8 @@ def hop_pairs(scope: str, contrast: str) -> dict[str, tuple[str, str]]:
     scope goes unnoticed.
     """
 
+    if CONTRASTS[contrast] is None:
+        return dict(STABLE_DEPTH_NAMES)
     candidate_hops, baseline_hops = CONTRASTS[contrast]
     return {
         tier: (

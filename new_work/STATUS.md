@@ -207,6 +207,31 @@ unchanged from the smaller scope); the rest are descriptive.
 
 ---
 
+## Run queue and what is deliberately not run
+
+Strictly sequential — two concurrent jobs on this machine once caused 1.58M
+swapouts and a sixfold slowdown, so nothing overlaps.
+
+| order | run | cost | why |
+|---|---|---:|---|
+| done | tier 3, 5 seeds | — | headline + cold start |
+| done | tier 1, 3 seeds | — | substitution curve middle |
+| running | tier 0, 3 seeds | ~1.4h | curve's left endpoint |
+| queued | `depth_test.py` | ~2.2h | one-factor 2-vs-1 at tier 3 |
+| queued | tier 2, 3 seeds | ~1.4h | the crossover cell |
+
+**Tier 2 was going to be dropped and is not.** It was listed as the least
+informative tier, but it is where the graph's marginal value changes sign at the
+smaller scope (−0.014 at tier 1, +0.007 at tier 2), so leaving it out would
+leave the full-scope curve without the one cell the thesis figure turns on.
+
+**Seeds are uneven by tier and that is a limitation, not a finding.** Tier 3 has
+five; tiers 0, 1 and 2 have three, so their paired intervals use t = 4.303 rather
+than 2.776. Every hop contrast is still within-tier and one-factor. Report n per
+tier — the grid CSV now carries an `n_seeds` column for exactly this reason.
+
+---
+
 ## Next, after these
 
 3. **Cold start becomes the headline analysis.** The positive result is already

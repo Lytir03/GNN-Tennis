@@ -141,31 +141,65 @@ worth anything, and cold start is defined by not having it.
 So the graph does not substitute for a missing per-player history. **It
 amplifies a present one.**
 
-### What survives: your intransitivity effect
+### The dose-response by shared opponents
 
-The dose-response by shared opponents is monotone and points the same way:
-
-| common opponents | matches | Δ (1 hop − none) | seeds won |
+| common opponents | matches | Δ (1 hop − none), tier 3 | seeds won |
 |---|---:|---:|---:|
 | 0 | 920 | **+0.01731** * | 0/5 |
 | 1–4 | 1814 | +0.00188 | 1/5 |
 | 5–14 | 3037 | −0.00057 | 4/5 |
 | 15+ | 8569 | −0.00126 | 5/5 |
 
-And the pre-specified contrast — matches with no prior meeting but a shared
-opponent, against everything else — is significant at full scope:
+Monotone, and pointing the same way as the degree cut. Note these two are
+strongly correlated — a player with few opponents has few shared ones — so
+"helps where there are common opponents" and "helps where players are well
+recorded" are probably one phenomenon seen twice, not two findings.
 
-**interaction = −0.00336, CI [−0.00547, −0.00126], 5 seeds.**
+### The intransitivity test does not replicate — and I first read it wrong
 
-At Slam+Masters this contrast had decayed to −0.0035 and was *not* significant at
-the richest feature tier. Same effect size at full scope, now with the precision
-to resolve it. This is the one relational claim in the project that has survived
-every control and got stronger with more data.
+**The error, stated plainly.** There are two interventions here and they answer
+different questions:
 
-Note the honest reading: `degree_stratum` and `common_stratum` are strongly
-correlated — a player with few opponents has few shared ones — so "helps where
-there are common opponents" and "helps where players are well recorded" are
-probably one phenomenon seen twice, not two findings.
+* **1 hop vs none** — is the graph worth anything at all?
+* **2 hops vs 1 hop** — is *relational* structure worth anything beyond each
+  player's own neighbourhood? Only a two-layer model can route information along
+  a path through a shared opponent. **This is the intransitivity test.**
+
+I initially compared a `1_vs_none` interaction at full scope (−0.00336) against
+the `2_vs_1` interaction from the earlier analysis (−0.0035) and reported that
+the effect had "survived and sharpened". Those are different quantities. They
+are not comparable, and at Slam+Masters they have *opposite signs* — which is
+what it should have taken to notice. `new_work/cold_start.py` now runs both
+interventions explicitly so the two can never be read as one number again.
+
+**The intransitivity contrast, run correctly.** Matches with no prior meeting
+but a shared opponent, against the rest; negative means the deeper model gains
+more there:
+
+| tier | Slam+Masters (5 seeds) | full scope |
+|---|---|---|
+| 0 — no B-score | −0.00987, [−0.01251, −0.00723] * | not yet computed |
+| 1 — B-score + static | −0.01148, [−0.01412, −0.00884] * | **−0.00033, [−0.00328, +0.00262]** (3) |
+| 2 — history on nodes | −0.00954, [−0.01670, −0.00238] * | not run |
+| 3 — history at decoder | −0.00353, [−0.00794, +0.00088] | −0.00182, [−0.01286, +0.00921] (5) |
+
+At tier 1 this is a **refutation, not a failure to replicate**: the full-scope
+interval excludes the entire Slam+Masters interval. The effect that was
+−0.0115 on 10,212 matches is −0.0003 on 49,797.
+
+Tier 3's full-scope test is **inconclusive rather than negative** — its interval
+is nine times wider than tier 1's, because the 2-hop cells were trained with the
+carried-over lr 3e-4 that the diagnostic above showed to be unstable at this
+scope. A clean tier-3 depth test needs those cells rerun at lr 1e-4, which has
+not been done for five seeds.
+
+**What this costs the thesis.** The intransitivity hypothesis was the most
+attractive story in the project — a relational effect that a tabular model
+structurally cannot hold. It looked real at Slam+Masters across three feature
+tiers with intervals well clear of zero. It does not survive the tour-wide data.
+The most likely reading is that Slam+Masters is a small, densely connected
+population where shared opponents are informative about a narrow elite, and that
+the pattern does not generalise once ATP 250/500 draws are included.
 
 ### At poor features, the graph helps everywhere
 

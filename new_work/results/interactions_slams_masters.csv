@@ -1,0 +1,9 @@
+intervention,tier,by,contrast,n_seeds,difference_of_deltas,ci_low,ci_high,significant
+1_vs_none,0_no_bscore,two_hop_only,(True) minus (False),5,0.007609874704250877,0.005391309962915288,0.009828439445586467,*
+1_vs_none,1_bscore,two_hop_only,(True) minus (False),5,0.013690772036788115,0.010728963901491834,0.016652580172084396,*
+1_vs_none,2_history_nodes,two_hop_only,(True) minus (False),5,-0.0011727870370968588,-0.0037747034029170664,0.0014291293287233488,
+1_vs_none,3_history_decoder,two_hop_only,(True) minus (False),5,0.002896810794076385,0.0010533639241102994,0.004740257664042471,*
+2_vs_1,0_no_bscore,two_hop_only,(True) minus (False),5,-0.009873811583576678,-0.012513615921877658,-0.007234007245275698,*
+2_vs_1,1_bscore,two_hop_only,(True) minus (False),5,-0.011479067662765144,-0.01412149260753842,-0.008836642717991868,*
+2_vs_1,2_history_nodes,two_hop_only,(True) minus (False),5,-0.00954331518993336,-0.01670276051253348,-0.0023838698673332393,*
+2_vs_1,3_history_decoder,two_hop_only,(True) minus (False),5,-0.0035276886959957864,-0.007936916450299501,0.0008815390583079294,

@@ -49,22 +49,46 @@ from tennis_gnn.stratify import (  # noqa: E402
     stratum_table,
 )
 from tennis_gnn.structure import add_strata, structure_table  # noqa: E402
+from new_work.feature_hop_grid import TIERS, artifact_name  # noqa: E402
 
-# Tier -> (artifact with one hop, artifact with message passing disabled).
-# The pair is what makes the contrast one-factor: same tier, same recipe, same
-# seeds, differing only in whether messages flow.
-HOP_PAIRS = {
-    "0_no_bscore": ("grid_0_no_bscore_1hop", "grid_0_no_bscore_nonehop"),
-    "1_bscore": ("grid_1_bscore_1hop", "grid_1_bscore_nonehop"),
-    "2_history_nodes": (
-        "grid_2_history_nodes_1hop",
-        "grid_2_history_nodes_nonehop",
-    ),
-    "3_history_decoder": (
-        "grid_3_history_decoder_1hop",
-        "grid_3_history_decoder_nonehop",
-    ),
+
+# The two interventions, and they answer different questions.  Confusing them
+# is easy and was done once in this project's notes: an interaction from the
+# "1 vs none" contrast was compared against one from "2 vs 1" as though the two
+# numbers were the same quantity.
+#
+#   1 vs none  - is the graph worth anything at all?
+#   2 vs 1     - is *relational* structure worth anything beyond each player's
+#                own neighbourhood?  This is the intransitivity test: only a
+#                two-layer model can route information along a path through a
+#                shared opponent.  A one-layer model sees each player's own
+#                opponents and nothing further.
+CONTRASTS = {
+    "1_vs_none": (1, "none"),
+    "2_vs_1": (2, 1),
 }
+
+
+def hop_pairs(scope: str, contrast: str) -> dict[str, tuple[str, str]]:
+    """Tier -> (candidate, baseline), named as that scope stores them.
+
+    Delegated to the grid rather than restated, because Slam+Masters reuses the
+    earlier `gnn_decoder_one_hop`-style names for cells that already existed.
+    Hardcoding the full-scope names here made this analysis silently skip every
+    tier at the smaller scope - and skipping is exactly how a contradicting
+    scope goes unnoticed.
+    """
+
+    candidate_hops, baseline_hops = CONTRASTS[contrast]
+    return {
+        tier: (
+            artifact_name(tier, candidate_hops, scope),
+            artifact_name(tier, baseline_hops, scope),
+        )
+        for tier in TIERS
+    }
+
+
 # The headline: best GNN configuration against the tuned tabular baseline.
 HEADLINE_GNN = "grid_3_history_decoder_nonehop"
 HEADLINE_BASELINE = "gbdt_tuned"
@@ -150,40 +174,51 @@ def main() -> None:
     headline.to_csv(out / f"headline_{scope}.csv", index=False)
 
     print("\n" + "=" * 72)
-    print("2. WHERE THE GRAPH PAYS  (1 hop vs messages disabled, per tier)")
+    print("2. WHERE THE GRAPH PAYS  (per tier, per intervention)")
     print("=" * 72)
     structure = build_structure(scope, args.structure_seed)
     print(f"structure table: {len(structure)} test matches\n")
 
     stratum_rows, interaction_rows = [], []
-    for tier, (candidate, baseline) in HOP_PAIRS.items():
-        seeds = seeds_with(scope, candidate, baseline)
-        if len(seeds) < 2:
-            print(f"-- {tier}: skipped, {len(seeds)} paired seed(s)\n")
-            continue
-        data = paired_frame(
-            ROOT, scope, seeds, candidate, baseline, structure
-        )
-        print(f"-- {tier}  seeds {seeds}  (negative = one hop better)")
-        for stratum in STRATA:
-            table = stratum_table(data, stratum)
-            table.insert(0, "tier", tier)
-            table.insert(1, "by", stratum)
-            stratum_rows.append(table)
-            print(f"\n  by {stratum}:")
-            print("   " + table.to_string(index=False).replace("\n", "\n   "))
-            # An interaction is only defined for a two-level cut; the ordered
-            # cuts are described by the table above, not by a single contrast.
-            if table["stratum"].nunique() == 2:
-                contrast = interaction_test(data, stratum)
-                contrast.insert(0, "tier", tier)
-                contrast.insert(1, "by", stratum)
-                interaction_rows.append(contrast)
-                print(
-                    "   interaction: "
-                    + contrast.to_string(index=False).replace("\n", "\n   ")
-                )
-        print()
+    for contrast_name in CONTRASTS:
+        print("\n" + "#" * 72)
+        print(f"# INTERVENTION: {contrast_name}")
+        print("#" * 72)
+        for tier, (candidate, baseline) in hop_pairs(scope, contrast_name).items():
+            seeds = seeds_with(scope, candidate, baseline)
+            if len(seeds) < 2:
+                print(f"-- {tier}: skipped, {len(seeds)} paired seed(s)\n")
+                continue
+            data = paired_frame(
+                ROOT, scope, seeds, candidate, baseline, structure
+            )
+            print(
+                f"-- {tier}  seeds {seeds}  "
+                "(negative = the deeper model is better)"
+            )
+            for stratum in STRATA:
+                table = stratum_table(data, stratum)
+                table.insert(0, "intervention", contrast_name)
+                table.insert(1, "tier", tier)
+                table.insert(2, "by", stratum)
+                stratum_rows.append(table)
+                print(f"\n  by {stratum}:")
+                print("   " + table.to_string(index=False).replace("\n", "\n   "))
+                # An interaction is only defined for a two-level cut; the
+                # ordered cuts are described by the table above.
+                if table["stratum"].nunique() == 2:
+                    interaction = interaction_test(data, stratum)
+                    interaction.insert(0, "intervention", contrast_name)
+                    interaction.insert(1, "tier", tier)
+                    interaction.insert(2, "by", stratum)
+                    interaction_rows.append(interaction)
+                    print(
+                        "   interaction: "
+                        + interaction.to_string(index=False).replace(
+                            "\n", "\n   "
+                        )
+                    )
+            print()
 
     if stratum_rows:
         frame = pd.concat(stratum_rows, ignore_index=True)

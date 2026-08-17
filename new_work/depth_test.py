@@ -21,7 +21,16 @@ at once, which is the exact error this project has been correcting throughout.
 Cost is about 2.2 hours; it is the price of one honest answer to the project's
 central question.
 
-Run: python new_work/depth_test.py
+**And it turned out to matter for the headline too.**  At lr 1e-4 the one-hop
+model scores 0.6191, better than the *no-message* cell the grid reported at
+0.6202 - but that cell was trained at 3e-4.  The claim "the winning model uses
+no message passing" therefore rested on a comparison in which the better recipe
+was never tried on the no-message arm.  `--hops none` runs it, at 36 seconds a
+seed, so the three-way comparison at a single recipe settles whether message
+passing is worth anything at the richest tier.
+
+Run: python new_work/depth_test.py                 # 1 and 2 hops
+     python new_work/depth_test.py --hops none     # the control, ~3 minutes
 """
 
 from __future__ import annotations
@@ -46,15 +55,26 @@ SEEDS = (42, 123, 456, 789, 2026)
 TIER = "3_history_decoder"
 
 
-def artifact_for(hops: int) -> str:
+def artifact_for(hops) -> str:
     return f"depth_{TIER}_{hops}hop_lr1e4"
+
+
+def config_for(model, hops):
+    """`none` disables messages while keeping every layer and LayerNorm."""
+
+    if hops == "none":
+        return replace(model, num_layers=1, disable_message_passing=True)
+    return replace(model, num_layers=int(hops))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scope", default="full")
     parser.add_argument("--seeds", type=int, nargs="+", default=list(SEEDS))
-    parser.add_argument("--hops", type=int, nargs="+", default=[1, 2])
+    parser.add_argument(
+        "--hops", nargs="+", default=["1", "2"],
+        help="1, 2, or none (messages disabled)",
+    )
     args = parser.parse_args()
 
     model = TIERS[TIER]["model"]
@@ -64,7 +84,7 @@ def main() -> None:
         flush=True,
     )
     for hops in args.hops:
-        config = replace(model, num_layers=hops)
+        config = config_for(model, hops)
         name = artifact_for(hops)
         for seed in args.seeds:
             start = time.time()

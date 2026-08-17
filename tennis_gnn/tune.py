@@ -34,6 +34,35 @@ from tennis_gnn.snapshots import load_or_build  # noqa: E402
 from tennis_gnn.train import metrics, run_experiment  # noqa: E402
 
 
+def focused_space() -> list[TrainConfig]:
+    """A small search around a known optimum, for expensive scopes.
+
+    The 21-configuration grid costs about 6.2 hours at the full scope, most of
+    it in configurations that were never competitive: the `replay_batch_size=None`
+    entries replay the whole 200-graph buffer every step and scored 0.5527
+    against the winner's 0.5453 on the smaller scope.
+
+    So this searches the axis that actually matters when the data grows -
+    how much optimisation - around the recipe the full grid already selected
+    (lr 3e-4, 4 steps, mini-batch 32, one pass).  It is a smaller search and
+    should be reported as one: a schedule far from this neighbourhood would not
+    be found.
+    """
+
+    return [
+        TrainConfig(learning_rate=lr, steps_per_block=steps,
+                    replay_batch_size=32, passes=passes)
+        for lr, steps, passes in (
+            (3e-4, 4, 1),   # the smaller scope's winner
+            (3e-4, 8, 1),
+            (3e-4, 4, 2),
+            (1e-4, 4, 1),
+            (1e-4, 8, 1),
+            (1e-3, 4, 1),
+        )
+    ]
+
+
 def search_space() -> list[TrainConfig]:
     """A staged grid over the optimisation recipe.
 
@@ -109,6 +138,11 @@ def main() -> None:
     # exact unfairness this module was written to remove, so the architecture
     # under search is explicit.
     parser.add_argument("--model", default="base")
+    parser.add_argument(
+        "--space", choices=("full", "focused"), default="full",
+        help="'focused' is a 6-config search around the known optimum, for "
+             "scopes where the 21-config grid is prohibitively slow",
+    )
     args = parser.parse_args()
 
     ablations = one_factor_ablations()
@@ -123,7 +157,7 @@ def main() -> None:
         ROOT, dataset, model_config.edge_preset, seed=args.seed
     )
 
-    configs = search_space()
+    configs = search_space() if args.space == "full" else focused_space()
     print(f"Evaluating {len(configs)} configurations on validation only.\n")
 
     rows = []

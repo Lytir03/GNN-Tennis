@@ -99,3 +99,37 @@ than silently filling B-score with defaults.
 4. **Re-run the temporal model** through `tennis_gnn/` so it emits a matching
    `evaluation_hash`. See `inconclusive_and_superseded/README.md` §1 for why it is now
    more interesting than when it was parked.
+
+---
+
+## Full-scope run: cost, and what it forced
+
+Measured, not estimated: **161 ms per optimiser step at full scope against 64 ms
+at Slam+Masters**, from 5.2x the trainable blocks (1734 vs 336) and 2.4x the
+edges per block (15255 vs 6418) - 12.5x compute. A 1-hop run takes 1058s, a
+2-hop about 2100s.
+
+That makes the planned 12 cells x 5 seeds roughly 19 hours, so two things gave
+way. Both are limitations of this run, not findings:
+
+1. **The full-scope tuning search was abandoned.** The 21-configuration grid
+   costs 6.2h here; a 6-configuration focused search was substituted, and even
+   that was stopped after one configuration when it collided with the grid.
+   The recipe used for tier 3 (lr 3e-4, 4 steps, mini-batch 32, one pass) is
+   therefore **carried over from the smaller scope**, confirmed by exactly one
+   full-scope validation measurement (calibrated 0.6309). A schedule that suits
+   5x the data better would not have been found.
+
+2. **Seeds are uneven by tier.** Tier 3 gets 5 seeds because it carries the
+   headline and the cold-start analysis; tiers 0, 1 and 2 get 3, which widens
+   their paired intervals (t = 4.303 rather than 2.776). Every hop contrast is
+   still within-tier and one-factor, so the comparisons remain valid - they are
+   simply less precise. Report n per tier.
+
+Tiers run in value order (3, then 1, 0, 2) so that an interruption still leaves
+the headline and the substitution curve's endpoints intact.
+
+**Do not compare full-scope numbers with Slam+Masters ones.** The wider scope is
+a harder problem - the GBDT falls from 0.6015 to 0.6249 - because ATP 250/500
+draws bring weaker and less-recorded players. Only within-scope contrasts mean
+anything.

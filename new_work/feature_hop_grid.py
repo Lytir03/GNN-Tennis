@@ -107,13 +107,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scope", default="slams_masters")
     parser.add_argument("--seeds", type=int, nargs="+", default=list(SEEDS))
+    parser.add_argument(
+        "--tiers", nargs="+", default=list(TIERS),
+        help="subset of tiers to compute; the summary table is only written "
+             "when every tier is present",
+    )
+    parser.add_argument("--summary-only", action="store_true")
     args = parser.parse_args()
     scope, seeds = args.scope, args.seeds
+    wanted = [t for t in TIERS if t in set(args.tiers)]
 
     existing = existing_for(scope)
-    todo = [
+    todo = [] if args.summary_only else [
         (tier, hops)
-        for tier in TIERS
+        for tier in wanted
         for hops in HOPS
         if (tier, hops) not in existing
     ]
@@ -150,11 +157,24 @@ def main() -> None:
             )
 
     names = [artifact_name(t, h, scope) for t in TIERS for h in HOPS]
-    per_seed = per_seed_metrics(scope, list(seeds), names)
+    available = {
+        n for n in names
+        if (ROOT / "results" / "frozen_predictions" / scope
+            / f"seed_{seeds[0]}" / f"{n}.manifest.json").is_file()
+    }
+    complete = [
+        t for t in TIERS
+        if all(artifact_name(t, h, scope) in available for h in HOPS)
+    ]
+    if not complete:
+        print("\nNo tier is complete yet; skipping the summary table.")
+        return
+    per_seed = per_seed_metrics(scope, list(seeds), sorted(available))
     means = per_seed.groupby("experiment")[["accuracy", "log_loss"]].mean()
 
     rows = []
-    for tier, spec in TIERS.items():
+    for tier in complete:
+        spec = TIERS[tier]
         row = {"tier": spec["label"], "own_recipe": spec["own_recipe"]}
         for hops in HOPS:
             row[f"{hops}_hop"] = means.loc[

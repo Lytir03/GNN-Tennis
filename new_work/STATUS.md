@@ -34,8 +34,10 @@ held fixed across the hop axis.
 
 ## Task B — Expand the data ✅ done
 
-**Done.** The dataset is now the full ATP tour: **49,797 matches / 4,688 blocks**
-against 10,212 before, split train 15,809 / validation 5,325 / test 14,340. The
+**Done.** The dataset is now the full ATP tour: **35,474 scored matches / 4,688 blocks**
+against 10,212 / 795 before, split train 15,809 / validation 5,325 / test 14,340. (The
+file holds 49,797 matches; the rest are warm-up years that build history and are never
+emitted as targets — quote the scored figure.) The
 validation standard error falls from ≈0.018 to ≈0.008, which is what makes
 effects of a few thousandths resolvable at all.
 
@@ -91,7 +93,7 @@ identical matches and labels:
 | accuracy | **+0.00448** | [+0.00165, +0.00731] | 5/5 |
 
 At Slam+Masters this was a win on probability quality and a *tie* on accuracy.
-At 2.7× the data it is a win on all three.
+At 3.5× the data it is a win on all three.
 
 These numbers are for `depth_3_history_decoder_1hop_lr1e4`, chosen on validation
 (0.61384 against 0.61600 for the no-message arm) and never on test. An earlier
@@ -172,7 +174,7 @@ more there:
 
 At tier 1 this is a **refutation, not a failure to replicate**: the full-scope
 interval excludes the entire Slam+Masters interval. The effect that was
-−0.0115 on 10,212 matches is −0.0003 on 49,797.
+−0.0115 on 10,212 scored matches is −0.0003 on 35,474.
 
 Tier 3's full-scope test is **inconclusive rather than negative** — its interval
 is nine times wider than tier 1's, because the 2-hop cells were trained with the
@@ -231,7 +233,7 @@ Tier 3's cell is the one run at lr 3e-4. Corrected to the stable recipe it is
 
 Tiers 0, 1 and 2 were already at lr 1e-4, so only the last point moves.
 
-Monotone decay of the same shape on 2.7× the data and a different tournament
+Monotone decay of the same shape on 3.5× the data and a different tournament
 population. **The graph's value is a decreasing function of how well the model
 is already informed about the two players** — it falls by a factor of about
 sixty from tier 0 to tier 3.

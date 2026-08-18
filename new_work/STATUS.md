@@ -74,7 +74,7 @@ not just the sample size.
 
 ---
 
-## Stage 5 — the headline holds, and the cold-start hypothesis does not
+## Stage 5 — the headline holds; cold start does not
 
 Run: `python new_work/cold_start.py --scope full`
 → `new_work/results/{headline,strata,interactions}_full.csv`
@@ -86,15 +86,18 @@ identical matches and labels:
 
 | metric | Δ (GNN − GBDT) | 95% CI | seeds won |
 |---|---:|---|---:|
-| log loss | **−0.00465** | [−0.00593, −0.00336] | 5/5 |
-| Brier | **−0.00202** | [−0.00261, −0.00144] | 5/5 |
-| accuracy | **+0.00508** | [+0.00295, +0.00721] | 5/5 |
+| log loss | **−0.00572** | [−0.00719, −0.00426] | 5/5 |
+| Brier | **−0.00258** | [−0.00321, −0.00195] | 5/5 |
+| accuracy | **+0.00448** | [+0.00165, +0.00731] | 5/5 |
 
 At Slam+Masters this was a win on probability quality and a *tie* on accuracy.
-At 2.7× the data it is a win on all three. The same caveat as before still
-governs what it means: **the winning configuration has message passing
-disabled**, so this is a tabular comparison between two models given the same
-features, not a demonstration that the graph helps.
+At 2.7× the data it is a win on all three.
+
+These numbers are for `depth_3_history_decoder_1hop_lr1e4`, chosen on validation
+(0.61384 against 0.61600 for the no-message arm) and never on test. An earlier
+version of this section reported −0.00465 for the grid's no-message cell, under
+the belief that the winning configuration did not use the graph. It does — see
+the headline correction below.
 
 ### The cold-start hypothesis was tested and it failed
 

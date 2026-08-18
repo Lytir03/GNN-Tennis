@@ -110,7 +110,11 @@ def hop_pairs(scope: str, contrast: str) -> dict[str, tuple[str, str]]:
 
 
 # The headline: best GNN configuration against the tuned tabular baseline.
-HEADLINE_GNN = "grid_3_history_decoder_nonehop"
+# Selected on validation, never on test: one hop at lr 1e-4 scores 0.61384 on
+# validation against 0.61600 with messages disabled.  The grid's tier-3 cells are
+# not used here because they carry the lr 3e-4 recipe that handicaps precisely
+# the message-passing arms.
+HEADLINE_GNN = "depth_3_history_decoder_1hop_lr1e4"
 HEADLINE_BASELINE = "gbdt_tuned"
 
 STRATA = ("degree_stratum", "two_hop_only", "common_stratum", "h2h_stratum")

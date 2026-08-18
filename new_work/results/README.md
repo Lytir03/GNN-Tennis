@@ -22,7 +22,7 @@ the message-passing arms and not the no-message arm — see the headline
 correction in `STATUS.md`. Tiers 0, 1 and 2 were already at lr 1e-4.
 
 `strata_*.csv` and `interactions_*.csv` carry an `intervention` column
-(`1_vs_none`, `2_vs_1`, `2_vs_1_stable`). **Rows from different interventions
+(`1_vs_none`, `2_vs_1`, `1_vs_none_stable`, `2_vs_1_stable`). **Rows from different interventions
 are different quantities and must never be compared.** Conflating two of them
 produced a wrong claim in this project once already.
 

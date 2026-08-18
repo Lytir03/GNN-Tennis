@@ -218,13 +218,28 @@ per-player information the model already has. Negative means the graph helped.
 |---|---:|---:|
 | 0 — no B-score, no history | −0.08125 | **−0.06171** (3) |
 | 1 — B-score + static | −0.01418 | **−0.01355** (3) |
-| 2 — + history on nodes | +0.00689 | *queued* |
+| 2 — + history on nodes | +0.00689 | **−0.00121** (3) |
 | 3 — + history at decoder | +0.00002 | **+0.00047** (5) |
 
-Monotone decay through zero, the same shape and similar magnitudes on 2.7× the
-data and a different tournament population. **The graph's value is a decreasing
-function of how well the model is already informed about the two players**, and
-it reaches zero once the twelve history features are supplied.
+Tier 3's cell is the one run at lr 3e-4. Corrected to the stable recipe it is
+**−0.00100**, so the full-scope curve read end to end is
+
+**−0.0617 → −0.0136 → −0.0012 → −0.0010**
+
+Tiers 0, 1 and 2 were already at lr 1e-4, so only the last point moves.
+
+Monotone decay of the same shape on 2.7× the data and a different tournament
+population. **The graph's value is a decreasing function of how well the model
+is already informed about the two players** — it falls by a factor of about
+sixty from tier 0 to tier 3.
+
+But it does **not** reach zero, and this is the correction the recipe fix
+forced. At Slam+Masters the curve crossed into positive territory at tier 2
+(+0.0069) and the natural reading was "the graph is worth nothing, or less than
+nothing, once you supply the features". At full scope, with every tier on a
+stable recipe, it stays negative throughout and flattens at about −0.001, which
+at tier 3 is significant on 5/5 seeds. The graph's contribution **asymptotes to
+something small and real rather than vanishing.**
 
 The left endpoint deserves its own sentence, because it is the cleanest thing in
 the project. At tier 0 the no-message model scores **exactly 0.693147** — the

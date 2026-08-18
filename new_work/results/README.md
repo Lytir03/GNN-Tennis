@@ -16,6 +16,11 @@ result.
 | `interactions_full.csv` | `cold_start.py --scope full` | two-level stratum contrasts (the interaction tests) |
 | `twohop_diagnostic.csv` | `twohop_diagnostic.py` | learning rate 3e-4 vs 1e-4 at two hops, 2 seeds |
 
+The **`depth_*_lr1e4` artifacts** are the ones to trust at tier 3. The grid's
+tier-3 row used lr 3e-4, carried over from the smaller scope, which handicaps
+the message-passing arms and not the no-message arm — see the headline
+correction in `STATUS.md`. Tiers 0, 1 and 2 were already at lr 1e-4.
+
 `strata_*.csv` and `interactions_*.csv` carry an `intervention` column
 (`1_vs_none`, `2_vs_1`, `2_vs_1_stable`). **Rows from different interventions
 are different quantities and must never be compared.** Conflating two of them
@@ -26,11 +31,12 @@ produced a wrong claim in this project once already.
 | claim | file | how to read it |
 |---|---|---|
 | The GNN beats the tuned GBDT at full scope on log loss, Brier and accuracy | `headline_full.csv` | `excludes_zero` true on all three; 5/5 seeds |
-| …but the winning configuration uses no message passing | grid `none_hop` column, tier 3 | 0.62022 with messages disabled against 0.62070 at one hop |
+| The best model uses **one hop** of message passing | `depth_3_history_decoder_*_lr1e4` artifacts | 0.61915 at one hop against 0.62015 with messages disabled, 5/5 seeds |
+| Two hops hurt decisively | same artifacts | 0.62857 at two hops, 0/5 seeds |
 | Graph value decays as features improve (**the substitution curve**) | both `feature_hop_grid_*.csv` | `gain_1_vs_none` down the tiers, in both files |
 | At tier 0 the graph supplies the entire signal | grid, tier 0 row | `none_hop` = 0.693147 exactly = the coin flip |
 | Cold start does *not* favour message passing | `strata_full.csv`, `1_vs_none`, tier 3, `degree_stratum` | `0-5 (cold)` positive, 0/5 seeds |
-| The intransitivity effect does not replicate | `interactions_full.csv`, `2_vs_1`, `two_hop_only` | compare against the same rows in the Slam+Masters run |
+| The intransitivity effect does not replicate | `interactions_full.csv`, `2_vs_1_stable`, `two_hop_only` | −0.0001, CI [−0.0028, +0.0026]: a tight null, not a wide shrug |
 | The tier-3 2-hop penalty is mostly a recipe artifact | `twohop_diagnostic.csv` | lr 1e-4 recovers 0.0146 of 0.0237 |
 
 ## Reproducing
@@ -64,10 +70,11 @@ script rather than by chasing an odd number by hand.
 
 ## What is *not* here
 
-- **Tier 2 at full scope** — queued; the crossover cell where the graph's
-  marginal value changes sign.
-- **A clean tier-3 depth test** — `depth_test.py` retrains both arms at lr 1e-4
-  so the 2-vs-1 contrast is one-factor. Until it lands, the tier-3 `2_vs_1` row
-  is inconclusive, not negative.
+- **Tiers 0, 1 and 2 at five seeds** — they have three, so their intervals use
+  t = 4.303. Tier 2's strata in particular are all non-significant with wide
+  intervals and should be read as contributing its grid row and nothing more.
+- **A stable-recipe depth test at tiers 0, 1 and 2** — not needed, they already
+  ran at lr 1e-4, but it means the `2_vs_1` rows for those tiers are directly
+  comparable while tier 3's are not; use `2_vs_1_stable` for tier 3.
 - **The temporal model** — still not re-run through `tennis_gnn/`, so it emits no
   comparable `evaluation_hash` and is excluded from every table above.

@@ -1,9 +1,11 @@
 intervention,tier,by,contrast,n_seeds,difference_of_deltas,ci_low,ci_high,significant
 1_vs_none,0_no_bscore,two_hop_only,(True) minus (False),3,0.010646207768455318,0.009453877235710045,0.011838538301200591,*
 1_vs_none,1_bscore,two_hop_only,(True) minus (False),3,0.005008563136631179,0.002334144660871415,0.007682981612390944,*
+1_vs_none,2_history_nodes,two_hop_only,(True) minus (False),3,0.0062443656294710196,-0.002241907773599527,0.014730639032541567,
 1_vs_none,3_history_decoder,two_hop_only,(True) minus (False),5,-0.003361626720545574,-0.005467379466181312,-0.0012558739749098363,*
 2_vs_1,0_no_bscore,two_hop_only,(True) minus (False),3,0.0003475625078208228,-0.0037287784085924926,0.004423903424234138,
 2_vs_1,1_bscore,two_hop_only,(True) minus (False),3,-0.0003277375533830461,-0.0032795219964888065,0.002624046889722714,
+2_vs_1,2_history_nodes,two_hop_only,(True) minus (False),3,-0.004096530531360825,-0.009294748082483902,0.0011016870197622514,
 2_vs_1,3_history_decoder,two_hop_only,(True) minus (False),5,-0.0018223340962539771,-0.012858308312556153,0.0092136401200482,
 1_vs_none_stable,3_history_decoder,two_hop_only,(True) minus (False),5,-0.0007064926742009019,-0.0016476816850538203,0.00023469633665201654,
 2_vs_1_stable,3_history_decoder,two_hop_only,(True) minus (False),5,-9.467502791810477e-05,-0.002774904818678901,0.0025855547628426917,

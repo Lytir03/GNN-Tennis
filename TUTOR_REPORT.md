@@ -6,6 +6,13 @@ the diff second. Branch: `gnn-consolidation`. `main` is untouched.
 Headline numbers are at the end, in [§7](#7-the-verdict). Read [§1](#1-the-three-defects)
 first — the defects matter more than the score.
 
+> **Read [§12](#12-what-the-tour-wide-data-did-to-all-of-this) before quoting §7–§10.**
+> Everything up to §11 was measured on Slams + Masters, 10,212 matches. The data has
+> since been expanded to the full ATP tour, 49,797 matches, and three of the
+> conclusions below did not survive it — including the headline in §10. Sections are
+> left as written, with a pointer where each is superseded, because the sequence of
+> being wrong is the useful part.
+
 ---
 
 ## 1. The three defects
@@ -521,6 +528,10 @@ joined by a shared opponent than on matches that aren't, the interval is nowhere
 zero, and it holds on every seed. This is an intervention, not a subgroup search: I
 changed the receptive field and the effect appeared exactly where the mechanism predicts.
 
+> **Superseded — see [§12.4](#124-the-intransitivity-hypothesis-is-answered-and-the-answer-is-no).**
+> This interaction does not replicate on tour-wide data. At the matching feature tier it
+> falls from −0.0115 to −0.0003 with an interval that excludes the original estimate.
+
 ### And the dose stops at exactly two hops
 
 | model | accuracy | log-loss |
@@ -636,6 +647,11 @@ offset.
 
 ### Your intransitivity effect is the most robust result in the project
 
+> **This heading is wrong and I am leaving it visible.** It was true of the data I had.
+> On 2.7× the data the effect is a tight null — [§12.4](#124-the-intransitivity-hypothesis-is-answered-and-the-answer-is-no).
+> The lesson is in §12.6: "survives everything I pushed on it" and "survives a change of
+> population" are different claims, and I asserted the second having tested only the first.
+
 The interaction — depth helps *relatively more* on matches joined by a shared opponent —
 is significant in **both** feature regimes, with the same sign:
 
@@ -690,6 +706,10 @@ So the honest claim is precise: a significant win on *probability quality*, a ti
 accuracy. Every seed, and the interval is nowhere near zero.
 
 ### The control that changes what it means
+
+> **Superseded — see [§12.2](#122-the-headline-was-wrong-the-best-model-does-use-the-graph).**
+> This control compared two arms trained on a recipe that handicaps only the arm using
+> the graph. Retuned, one hop *beats* no message passing on 5/5 seeds.
 
 The winning configuration is **zero hops** — message passing removed entirely, verified
 by a test that rewires the graph and asserts the encoder's output does not move.
@@ -753,6 +773,10 @@ in an ablation table when I started; it turned out to be the load-bearing idea.
 
 ## 11. What I did not do, and what I'd do next
 
+> Written before the expansion. Items 1 and 2 are now **done** — the history features are
+> routed to the decoder and the dataset is five times larger — and doing them is what
+> produced §12. Items 3 to 5 are still open.
+
 **Not done, deliberately:** `preprocess/graph{,_clay1,_grass1,_hard1}.ipynb` are four
 near-identical surface-parameterised notebooks that should be one parameterised script.
 I left them alone. They produce the processed CSVs everything else depends on, and I
@@ -791,3 +815,253 @@ it as a recommendation rather than doing it blind.
    but report it against an equivalently-treated baseline, per §5. Partial results
    (seeds 42, 123) give 0.6025 and 0.6024 against single-model 0.6051 and 0.6015: mixed,
    and not obviously worth the 5× cost.
+
+---
+
+## 12. What the tour-wide data did to all of this
+
+Everything above was measured on Slams + Masters: 10,212 matches, a one-year
+validation window, and a standard error of roughly 0.018 against effects of 0.004. I
+said in §11 that this was the binding constraint on every selection decision in the
+project. It was, and fixing it changed the answers.
+
+The dataset is now the **full ATP tour**: 49,797 matches, 4,688 tournament-round blocks,
+train 15,809 / validation 5,325 / test 14,340. Validation SE falls to about 0.008.
+
+Three things to hold onto before the results:
+
+- **The wider scope is a harder problem.** The GBDT falls from 0.6015 to 0.6249, because
+  ATP 250/500 draws bring weaker and less-recorded players. Never compare a full-scope
+  number with a Slam+Masters one; only within-scope contrasts mean anything.
+- **It is also a different population**, not just a bigger sample. Where the two scopes
+  disagree, that is the most likely reason, and it matters more than it sounds.
+- **B-score coverage was checked, not assumed.** 99.1% of match-player slots in every
+  evaluated phase carry a real snapshot. The 71.5% figure across the whole file is
+  entirely the 2006–2010 warm-up years, which build history and are never scored.
+
+### 12.1 A calibration bug that had been corrupting results the whole time
+
+Before any of the new results: `fit_temperature` ran LBFGS with no line search. Fixed
+step sizes overshoot, so whenever the optimal temperature was **below one** the fit ran
+past it to the clamp at T = 0.0183.
+
+No under-confident model in this project was ever calibrated, and several were made far
+worse than not calibrating at all. That last part is the tell, and it is why this should
+have been caught years earlier: temperature is fitted on validation, where **T = 1 is
+always available**, so a correct fit can never lose to not calibrating. The fitter now
+checks exactly that invariant and falls back with a warning.
+
+Repairing it needed no retraining. A stored probability is `sigmoid(logit / T)` with T in
+the manifest, so the raw logit inverts exactly as `T · log(p / (1−p))`. `new_work/recalibrate.py`
+inverts, refits, rewrites, and asserts the `evaluation_hash` is unchanged. Validated
+against retraining the worst-affected cell from scratch: same temperature, same log loss,
+to four decimals.
+
+18 of 129 artifacts moved; 111 were already correct. The damage:
+
+| cell | T before | T after | test log loss |
+|---|---:|---:|---|
+| `grid_1_bscore_0hop` (5 seeds) | 0.0183 | 0.25–0.34 | 2.89 → **0.652** |
+| `grid_1_bscore_nonehop` (5 seeds) | 0.403 | 0.128 | 0.647 → **0.624** |
+| everything else | ≈1 | ≈1 | moves < 0.0005 |
+
+**§7 and §10 are unaffected** — every artifact behind them fitted T ≈ 1.0–1.2, the regime
+the bug never entered. But one piece of §9's supporting evidence has to be withdrawn: I
+rejected `num_layers=0` as a control partly because it "diverged to 2.89 log loss", blamed
+on the deleted LayerNorms. Repaired, it scores 0.652 — worse than the honest control's
+0.624, but not divergent. The design argument stands on its own (a control must remove
+one thing); the dramatic number was never the reason and should not have been quoted as
+one.
+
+### 12.2 The headline was wrong: the best model *does* use the graph
+
+§10 concluded: *"The model that beats the GBDT does not use the graph."* That is the
+single most-quoted line in this report, and it is false.
+
+The evidence for it was tier 3 scoring 0.62022 with message passing disabled against
+0.62070 at one hop — message passing worth nothing. Both cells used lr 3e-4, the recipe
+selected at the smaller scope. I had already shown that rate is unstable at *two* hops on
+the larger data, and did not ask the obvious next question: does it also handicap *one*?
+
+Retraining all three arms at lr 1e-4 (`new_work/depth_test.py`), five seeds:
+
+| arm, tier 3 | test log loss |
+|---|---:|
+| no messages | 0.62015 |
+| **one hop** | **0.61915** |
+| two hops | 0.62857 |
+
+| contrast | Δ log loss | 95% CI | seeds |
+|---|---:|---|---:|
+| **1 hop vs no messages** | **−0.00100** | [−0.00179, −0.00022] | **5/5** |
+| 2 hops vs 1 hop | +0.00942 | [+0.00560, +0.01325] | 0/5 |
+| **1 hop vs tuned GBDT** | **−0.00572** | [−0.00719, −0.00426] | **5/5** |
+
+**Message passing is worth a small but statistically reliable −0.0010 at the richest
+feature tier.** The corrected headline: *the best model uses one hop of message passing
+and beats a tuned GBDT by 0.0057 log loss, 5/5 seeds, on all three metrics.*
+
+**Why this was a systematic error rather than bad luck**, and this is the part worth
+carrying into your thesis: the no-message arm barely notices the recipe (−0.00008 between
+3e-4 and 1e-4, not significant), while the message-passing arms gain about 0.0015. A model
+that ignores its edges has fewer active parameters and is correspondingly insensitive to
+the schedule. So holding a badly chosen recipe **"fixed across the hop axis" is fixed in
+name and unequal in effect** — it biases against precisely the arm under test.
+
+"One factor at a time" is not automatically satisfied by holding a hyperparameter
+constant. It is satisfied when each arm is at *its own* best setting, or at a setting
+that is equally good for both. §1.3 made this argument about the GNN versus the GBDT and
+I then made the same mistake one level down.
+
+Tiers 0, 1 and 2 already ran at lr 1e-4, which is why their conclusions stand.
+
+### 12.3 The substitution curve — the result that held
+
+This is the figure your thesis should be built on. `gain_1_vs_none` is what one hop of
+message passing is worth, at four levels of per-player information:
+
+| tier | Slam+Masters (5 seeds) | full scope |
+|---|---:|---:|
+| 0 — no B-score, no history | −0.08125 | **−0.06171** (3) |
+| 1 — B-score + static | −0.01418 | **−0.01355** (3) |
+| 2 — + history on nodes | +0.00689 | **−0.00121** (3) |
+| 3 — + history at decoder | +0.00002 | **−0.00100** (5, corrected recipe) |
+
+Same shape on 2.7× the data and a different tournament population. **The graph's value is
+a decreasing function of how well the model is already informed about the two players**,
+falling roughly sixtyfold from tier 0 to tier 3.
+
+The left endpoint is the cleanest thing in the project. At tier 0 the no-message model
+scores **exactly 0.693147** — the coin flip — under every recipe tried: 4× the steps, 10×
+the learning rate, three passes, all identical to seven decimals. That is not a failure to
+train. With the B-scores zeroed the model sees only height and handedness, the
+antisymmetric decoder can represent "no difference between these two players" exactly, and
+that is the correct answer. Give the same architecture one hop on the same features and it
+scores 0.631. **There, the graph is not helping the features — the graph is the only
+feature there is.**
+
+**One correction to how I framed this before.** At Slam+Masters the curve crossed into
+positive territory at tier 2, which supported the stronger claim that the graph becomes
+*worse than useless* once you supply the features. On tour-wide data with every tier on a
+stable recipe it stays negative throughout and flattens at about −0.001. The graph's
+contribution **asymptotes to something small and real rather than vanishing.** That is a
+weaker claim than §10 made and a more defensible one.
+
+### 12.4 The intransitivity hypothesis is answered, and the answer is no
+
+Your hypothesis — that the graph earns its keep on matches joined through a common
+opponent — was the most attractive story here, and §9 called it "the most robust result in
+the project". It does not survive.
+
+**First, an error of mine that had to be undone.** There are two interventions and they
+answer different questions:
+
+- **1 hop vs none** — is the graph worth anything at all?
+- **2 hops vs 1 hop** — is *relational* structure worth anything beyond each player's own
+  neighbourhood? Only a two-layer model can route information along a path through a
+  shared opponent. **This is the intransitivity test.**
+
+I first reported the effect as surviving by comparing a `1_vs_none` interaction at full
+scope (−0.0034) against the `2_vs_1` interaction from §8 (−0.0035). Those are different
+quantities; at Slam+Masters they carry *opposite signs*, which is what it should have
+taken for me to notice. `new_work/cold_start.py` now runs both explicitly and labels them,
+so they cannot be read as one number again.
+
+Run correctly — matches with no prior meeting but a shared opponent, against the rest:
+
+| tier | Slam+Masters (5 seeds) | full scope |
+|---|---|---|
+| 1 — B-score + static | −0.01148, [−0.01412, −0.00884] * | **−0.00033, [−0.00328, +0.00262]** (3) |
+| 3 — history at decoder | −0.00353, [−0.00794, +0.00088] | **−0.00010, [−0.00278, +0.00259]** (5, stable recipe) |
+
+At tier 1 the two intervals **do not overlap**: this is a refutation, not a failure to
+replicate. At tier 3 the stable-recipe test is a *tight* null rather than a wide shrug —
+the interval is narrow enough to exclude anything like the original effect.
+
+The most likely reading: Slam+Masters is a small, densely connected elite population where
+shared opponents look informative about a narrow field. It does not generalise once ATP
+250/500 draws are in the data.
+
+**The second hop is worse than useless everywhere at full scope.** `gain_2_vs_1` is
+positive at every tier (+0.0013 / +0.0023 / +0.0128 / +0.0094 stable), where at
+Slam+Masters it was negative at tiers 0 and 1. Combined with §12.3, the pattern is sharp:
+**the one-hop substitution effect is robust across scopes; every second-hop effect
+reverses sign when the population changes.**
+
+### 12.5 Cold start reverses too — and the new direction makes more sense
+
+§11 and the follow-up work proposed making cold start the headline: message passing helps
+where a player has almost no recorded history. That was measured at −0.0048 on 5/5 seeds,
+and explicitly flagged as a hypothesis for the expanded data to confirm, because it was
+found after the main analysis. The expanded data refutes it.
+
+One hop against no messages at tier 3, by how many prior opponents the thinner-recorded
+player has (stable recipe, 5 seeds):
+
+| stratum | matches | Δ | seeds won | |
+|---|---:|---:|---:|:--:|
+| **0–5 (cold)** | 1404 | **+0.00413** | 0/5 | * |
+| 6–20 | 2449 | +0.00155 | 1/5 | |
+| **21+** | 10487 | **−0.00229** | 5/5 | * |
+
+Sign reversed, and unanimous in both directions. **Why the new direction is the more
+believable one:** a cold-start node has almost no neighbourhood to aggregate. One hop over
+two or three edges cannot manufacture a skill estimate; what it does is dilute the B-score
+prior, which at that point is the only reliable signal the model has. Message passing needs
+structure to be worth anything, and cold start is defined by not having it.
+
+So the graph does not substitute for a *missing* per-player history. **It amplifies a
+present one.** The shared-opponent dose-response says the same thing from the other side,
+and it is monotone across all four levels (same stable recipe, 5 seeds):
+
+| common opponents | matches | Δ | seeds won | |
+|---|---:|---:|---:|:--:|
+| 0 | 920 | +0.00351 | 0/5 | * |
+| 1–4 | 1814 | +0.00231 | 0/5 | * |
+| 5–14 | 3037 | −0.00030 | 3/5 | |
+| 15+ | 8569 | −0.00244 | 5/5 | * |
+
+Note these two cuts are strongly correlated — a player with few opponents has few shared
+ones — so they are probably one phenomenon seen twice, not two findings.
+
+This is *not* the same claim as the substitution curve, and the two are consistent. The
+curve says the graph matters most when the model has poor **features**; cold start says the
+graph fails when a match has poor **structure**. A tier-0 model with a well-connected pair
+has poor features and rich structure — and that is exactly where the graph delivers its
+−0.06.
+
+### 12.6 What I would tell you to take from this
+
+**The defensible thesis claim**, in one paragraph: *graph structure substitutes for
+per-player history. Its value is a steeply decreasing function of how well the model is
+already informed — worth 0.06 log loss when the model has nothing else, 0.001 when it has
+twelve engineered history features — and it does not vanish, it asymptotes. It requires
+structure to work: it helps where players are well connected and actively hurts in cold
+start. Relational depth beyond one hop buys nothing on tour-wide data.*
+
+That is less exciting than "GNNs beat GBDTs on tennis" and much more defensible. It is
+also a real contribution: the substitution curve is a measurement nobody in this
+literature seems to make, and the fact that it flattens above zero rather than crossing it
+is the interesting detail.
+
+**Three methodological lessons**, all of which cost me a result here:
+
+1. **A recipe held fixed across arms is not a fair comparison** if the arms differ in how
+   much they depend on it (§12.2). Tune per arm, or verify the setting is equally good for
+   both.
+2. **"Survives everything I pushed on it" is not "survives a change of population"**
+   (§12.4). Every effect that reversed here reversed on scope, not on seed, recipe or
+   architecture — and no amount of within-scope robustness checking would have caught it.
+3. **Guarantees you can state, you should assert in code.** The calibration bug (§12.1)
+   violated an invariant I could have written down in one line — "calibration cannot be
+   worse than not calibrating" — and it survived for months because nobody asserted it.
+   That invariant, `evaluation_hash`, and the antisymmetric decoder are the three things in
+   this repository that make a wrong answer *fail* rather than merely be wrong.
+
+**What is still open**: the temporal model has still not been re-run through `tennis_gnn/`
+and so remains unquotable in either direction; `mean_aggregation` and
+`residual_connections` are still untested one-factor; and tiers 0, 1 and 2 have three seeds
+rather than five, so their intervals use t = 4.303 and are correspondingly wide.
+
+Full detail, run queue and per-file provenance: `new_work/STATUS.md` and
+`new_work/results/README.md`.

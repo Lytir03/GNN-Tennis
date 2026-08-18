@@ -322,18 +322,22 @@ data, relational depth buys nothing.
 
 ---
 
-## Run queue and what is deliberately not run
+## What was run, and what is deliberately not
 
 Strictly sequential — two concurrent jobs on this machine once caused 1.58M
 swapouts and a sixfold slowdown, so nothing overlaps.
 
-| order | run | cost | why |
+| order | run | seeds | why |
 |---|---|---:|---|
-| done | tier 3, 5 seeds | — | headline + cold start |
-| done | tier 1, 3 seeds | — | substitution curve middle |
-| running | tier 0, 3 seeds | ~1.4h | curve's left endpoint |
-| queued | `depth_test.py` | ~2.2h | one-factor 2-vs-1 at tier 3 |
-| queued | tier 2, 3 seeds | ~1.4h | the crossover cell |
+| done | tier 3 | 5 | headline + cold start |
+| done | tier 1 | 3 | substitution curve middle |
+| done | tier 0 | 3 | curve's left endpoint |
+| done | `depth_test.py`, 1 and 2 hops | 5 | one-factor depth test at tier 3 |
+| done | `depth_test.py --hops none` | 5 | the control that corrected the headline |
+| done | tier 2 | 3 | the crossover cell |
+
+**All runs are complete.** Every analysis below reads frozen artifacts and
+retrains nothing, so all of it regenerates in seconds.
 
 **Tier 2 was going to be dropped and is not.** It was listed as the least
 informative tier, but it is where the graph's marginal value changes sign at the

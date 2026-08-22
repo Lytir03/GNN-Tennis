@@ -14,7 +14,8 @@ predicted, and only then do those matches enter the graph.
 |---|---|
 | `tennis_gnn/` | The model, data pipeline, training, tuning and comparison code |
 | `gbdt_comparison/` | Tuned `HistGradientBoostingClassifier` baseline on the same information |
-| `temporal_gnn_intransitivity/` | Exploratory recurrent-state variant (see its README for why its result is not yet conclusive) |
+| `new_work/` | Live/exploratory work-in-progress; see `new_work/STATUS.md` for what's settled vs. still moving |
+| `inconclusive_and_superseded/` | Archived results that turned out not to hold up, kept with a README explaining why (includes `temporal_gnn_intransitivity/`, the exploratory recurrent-state variant) |
 | `preprocess/` | Notebooks that build the processed datasets and the B-score snapshots |
 | `results/frozen_predictions/` | Per-match predictions for every model and seed - the durable record |
 | `results/tuning/` | Validation search results |
@@ -73,7 +74,7 @@ later result.
 ```bash
 conda run -n tennis-gnn python -m unittest discover -s tennis_gnn -t . -p "test_*.py"
 conda run -n tennis-gnn python -m unittest discover -s gbdt_comparison -p "test_*.py"
-conda run -n tennis-gnn python -m unittest discover -s temporal_gnn_intransitivity -p "test_*.py"
+conda run -n tennis-gnn python -m unittest discover -s inconclusive_and_superseded/temporal_gnn_intransitivity -p "test_*.py"
 ```
 
 `tennis_gnn/verify_targets.py` checks that the rebuilt evaluation set still
@@ -87,4 +88,4 @@ baselines.
   per-match `intransitivity_level` is carried through to the predictions, so
   this is a group-by on the test set rather than a separate training run.
 - Is the temporal variant actually worse, or just smaller and untuned?
-  See `temporal_gnn_intransitivity/README.md`.
+  See `inconclusive_and_superseded/temporal_gnn_intransitivity/README.md`.

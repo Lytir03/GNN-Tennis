@@ -57,16 +57,18 @@ python new_work/cold_start.py --scope full
 python new_work/audit_artifacts.py
 ```
 
-## Two health checks worth running after any new run
+## One health check worth running after any new run
 
 ```
-python new_work/recalibrate.py            # reports; --apply to repair
 python new_work/audit_artifacts.py        # degenerate output, clamped T, hash drift
 ```
 
-The first exists because a broken temperature fit damaged 18 artifacts before
-anyone noticed; the second exists so the next such fault is found by running a
-script rather than by chasing an odd number by hand.
+This exists so a fault like the temperature-calibration bug (18 artifacts damaged
+before anyone noticed, see `TUTOR_REPORT.md` §12.2) is found by running a script
+rather than by chasing an odd number by hand. The one-time recalibration fix that
+repaired those 18 artifacts has already been applied to every frozen artifact
+here; the script that did it (`recalibrate.py`) has served its purpose and was
+removed rather than kept as a migration script with nothing left to migrate.
 
 ## What is *not* here
 

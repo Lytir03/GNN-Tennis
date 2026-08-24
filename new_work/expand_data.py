@@ -1,25 +1,27 @@
-"""Coverage check and regression test for expanding beyond Slams + Masters.
-
-This deliberately does **not** expand anything yet.  It reports how far B-score
-coverage falls short of the raw data and refuses to build a wider dataset,
-because the failure mode is silent: matches without a B-score snapshot fall back
-to the 25th-percentile default, and `direct_bscore_logit` feeds that default
-straight into the logit as the model's skill prior.  A run like that would
-complete, produce plausible numbers, and be meaningless for most of its rows.
-
-The order of operations that keeps this honest:
-
-1. Re-run `preprocess/graph*.ipynb` over the full tour with the logic unchanged.
-2. Run ``python new_work/expand_data.py --check-regression``.  It verifies the
-   regenerated snapshots reproduce the current values exactly on the 244
-   tournaments already covered.  If that fails, the regeneration changed the
-   definition and nothing downstream is comparable to the published results.
-3. Only then build the wider scope, and only then consider rewriting the four
-   surface notebooks into one parameterised script.
-
-Never change the definition and the scope in the same step: if the numbers move,
-you cannot tell which one did it.
-"""
+# Coverage check and regression test for expanding beyond Slams + Masters.
+#
+# This deliberately does NOT expand anything yet. It reports how far
+# B-score coverage falls short of the raw data and refuses to build a
+# wider dataset, because the failure mode is silent: matches without a
+# B-score snapshot fall back to the 25th-percentile default, and
+# direct_bscore_logit feeds that default straight into the logit as the
+# model's skill prior. A run like that would complete, produce plausible
+# numbers, and be meaningless for most of its rows.
+#
+# The order of operations that keeps this honest:
+#
+# 1. Re-run preprocess/graph*.ipynb over the full tour with the logic
+#    unchanged.
+# 2. Run python new_work/expand_data.py --check-regression. It verifies
+#    the regenerated snapshots reproduce the current values exactly on
+#    the 244 tournaments already covered. If that fails, the
+#    regeneration changed the definition and nothing downstream is
+#    comparable to the published results.
+# 3. Only then build the wider scope, and only then consider rewriting
+#    the four surface notebooks into one parameterised script.
+#
+# Never change the definition and the scope in the same step: if the
+# numbers move, you can't tell which one did it.
 
 from __future__ import annotations
 
@@ -65,8 +67,7 @@ def coverage() -> pd.DataFrame:
 
 
 def check_regression() -> int:
-    """Do regenerated snapshots still match on tournaments already covered?"""
-
+    # Do regenerated snapshots still match on tournaments already covered?
     current = PROCESSED / "bscore_snapshots.csv"
     regenerated = PROCESSED / "bscore_snapshots_full.csv"
     if not regenerated.is_file():

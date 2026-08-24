@@ -1,18 +1,18 @@
-"""Was the 2-hop penalty in the tier-3 grid row a depth effect or a recipe artifact?
-
-The full-scope grid reported `gain_2_vs_1 = +0.02368` for the richest feature
-tier - a large penalty for going from one hop to two.  That number was produced
-under tier 3's recipe (lr 3e-4), which was selected on the *smaller* scope and
-never re-searched at full scope; the limitation is recorded in
-`new_work/STATUS.md`.  Two hops touch far more of the graph per update, so a
-step size chosen for one hop is exactly the thing that would break first.
-
-The test: rerun the same 2-hop model, same seeds, same data, changing only the
-learning rate to 1e-4.  If the penalty is depth, it survives.  If it is the
-recipe, most of it disappears.
-
-Run: python new_work/twohop_diagnostic.py
-"""
+# Was the 2-hop penalty in the tier-3 grid row a depth effect or a recipe artifact?
+#
+# The full-scope grid reported gain_2_vs_1 = +0.02368 for the richest
+# feature tier - a large penalty for going from one hop to two. That
+# number was produced under tier 3's recipe (lr 3e-4), which was
+# selected on the smaller scope and never re-searched at full scope; the
+# limitation is recorded in new_work/STATUS.md. Two hops touch far more
+# of the graph per update, so a step size chosen for one hop is exactly
+# the thing that would break first.
+#
+# The test: rerun the same 2-hop model, same seeds, same data, changing
+# only the learning rate to 1e-4. If the penalty is depth, it survives.
+# If it's the recipe, most of it disappears.
+#
+# Run: python new_work/twohop_diagnostic.py
 
 from __future__ import annotations
 

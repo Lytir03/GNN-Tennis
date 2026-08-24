@@ -1,31 +1,33 @@
-"""Stage 5: the headline comparison and the cold-start / intransitivity strata.
-
-Two questions, in the order they have to be asked.
-
-**1. Does the model beat the GBDT at full scope?**  Paired across seeds on
-identical matches and labels.  The winning architecture at the smaller scope
-used *no message passing at all*, so this is reported as what it is: a tabular
-comparison between two models given the same features.
-
-**2. Where, if anywhere, does the graph pay?**  Within one architecture, one
-hop against no messages - an intervention on the receptive field, not a
-correlation with it.  The pre-specified strata are
-
-  * `degree_stratum` - cold start, how many prior opponents the thinner-recorded
-    player has.  The hypothesis: the graph substitutes for a history the model
-    does not have, so it should pay exactly where that history is missing.
-  * `two_hop_only` - no prior meeting, but a shared opponent.  The
-    intransitivity stratum: the only place a two-hop model has information the
-    one-hop tabular features cannot hold.
-  * `common_stratum`, `h2h_stratum` - the finer cuts, reported for completeness.
-
-Both are run at every feature tier that has artifacts, because the whole thesis
-claim is that the graph's value *decays as the features improve*.  A cold-start
-effect that only exists at the poorest tier says something different from one
-that survives to the richest.
-
-Run: python new_work/cold_start.py --scope full
-"""
+# Stage 5: the headline comparison and the cold-start / intransitivity strata.
+#
+# Two questions, in the order they have to be asked.
+#
+# 1. Does the model beat the GBDT at full scope? Paired across seeds on
+#    identical matches and labels. The winning architecture at the
+#    smaller scope used no message passing at all, so this is reported as
+#    what it is: a tabular comparison between two models given the same
+#    features.
+#
+# 2. Where, if anywhere, does the graph pay off? Within one architecture,
+#    one hop against no messages - an intervention on the receptive
+#    field, not a correlation with it. The pre-specified strata are:
+#
+#    - degree_stratum - cold start, how many prior opponents the
+#      thinner-recorded player has. The hypothesis: the graph substitutes
+#      for a history the model doesn't have, so it should pay off exactly
+#      where that history is missing.
+#    - two_hop_only - no prior meeting, but a shared opponent. The
+#      intransitivity stratum: the only place a two-hop model has
+#      information the one-hop tabular features can't hold.
+#    - common_stratum, h2h_stratum - the finer cuts, reported for
+#      completeness.
+#
+# Both get run at every feature tier that has artifacts, because the
+# whole thesis claim is that the graph's value decays as the features
+# improve. A cold-start effect that only exists at the poorest tier says
+# something different from one that survives to the richest.
+#
+# Run: python new_work/cold_start.py --scope full
 
 from __future__ import annotations
 
@@ -88,15 +90,13 @@ STABLE_DEPTH_NAMES = {
 
 
 def hop_pairs(scope: str, contrast: str) -> dict[str, tuple[str, str]]:
-    """Tier -> (candidate, baseline), named as that scope stores them.
-
-    Delegated to the grid rather than restated, because Slam+Masters reuses the
-    earlier `gnn_decoder_one_hop`-style names for cells that already existed.
-    Hardcoding the full-scope names here made this analysis silently skip every
-    tier at the smaller scope - and skipping is exactly how a contradicting
-    scope goes unnoticed.
-    """
-
+    # Tier -> (candidate, baseline), named as that scope stores them.
+    #
+    # Delegated to the grid rather than restated, because Slam+Masters
+    # reuses the earlier gnn_decoder_one_hop-style names for cells that
+    # already existed. Hardcoding the full-scope names here made this
+    # analysis silently skip every tier at the smaller scope - and
+    # skipping is exactly how a contradicting scope goes unnoticed.
     if CONTRASTS[contrast] is None:
         return dict(STABLE_DEPTH_NAMES[contrast])
     candidate_hops, baseline_hops = CONTRASTS[contrast]
@@ -121,12 +121,10 @@ STRATA = ("degree_stratum", "two_hop_only", "common_stratum", "h2h_stratum")
 
 
 def seeds_with(scope: str, *artifacts: str) -> list[int]:
-    """Seeds for which *every* named artifact exists.
-
-    A paired test over a seed that is missing one arm is not paired, so the
-    intersection is taken rather than the union.
-    """
-
+    # Seeds for which every named artifact exists.
+    #
+    # A paired test over a seed that's missing one arm isn't paired, so
+    # this takes the intersection rather than the union.
     root = ROOT / "results" / "frozen_predictions" / scope
     found = []
     for directory in sorted(root.glob("seed_*")):
@@ -139,16 +137,17 @@ def seeds_with(scope: str, *artifacts: str) -> list[int]:
 
 
 def build_structure(scope: str, seed: int) -> pd.DataFrame:
-    """Structural labels for every predicted match.
-
-    The descriptors are symmetric in (a, b) and depend only on the graph, so a
-    single seed's snapshots label every seed - see tennis_gnn/structure.py.
-
-    Cached to CSV because building it loads the whole snapshot file, which is
-    3.9 GB at full scope.  On a 24 GB machine that cannot be done alongside a
-    training run without swapping, and swapping here cost a sixfold slowdown
-    once already.  With the cache, every later stratified analysis is cheap.
-    """
+    # Structural labels for every predicted match.
+    #
+    # The descriptors are symmetric in (a, b) and depend only on the
+    # graph, so a single seed's snapshots label every seed - see
+    # tennis_gnn/structure.py.
+    #
+    # Cached to CSV because building it loads the whole snapshot file,
+    # which is 3.9 GB at full scope. On a 24 GB machine that can't be
+    # done alongside a training run without swapping, and swapping here
+    # cost a sixfold slowdown once already. With the cache, every later
+    # stratified analysis is cheap.
 
     # The cache holds the raw descriptors; the stratum cuts are re-applied on
     # read, both because they are cheap and because round-tripping an ordered

@@ -1,2 +1,2 @@
-"""Causal GBDT baseline for the tennis GNN project."""
+# the causal GBDT baseline for the tennis GNN project
 

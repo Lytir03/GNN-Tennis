@@ -362,10 +362,6 @@ tier — the grid CSV now carries an `n_seeds` column for exactly this reason.
    the main analysis — so it is a hypothesis for the expanded data to confirm, not a
    settled result. Task B is what gives it the sample size to be believed.
 
-4. **Re-run the temporal model** through `tennis_gnn/` so it emits a matching
-   `evaluation_hash`. See `inconclusive_and_superseded/README.md` §1 for why it is now
-   more interesting than when it was parked.
-
 ---
 
 ## Full-scope run: cost, and what it forced

@@ -1,4 +1,4 @@
-"""Tune and evaluate a HistGradientBoosting tennis baseline."""
+# Tunes and evaluates a HistGradientBoosting tennis baseline.
 
 from __future__ import annotations
 

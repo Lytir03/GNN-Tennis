@@ -1,4 +1,4 @@
-"""Tune the GBDT for each requested seed, skipping completed artifacts."""
+# Tunes the GBDT for each requested seed, skipping completed artifacts.
 
 from __future__ import annotations
 

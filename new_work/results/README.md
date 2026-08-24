@@ -78,5 +78,3 @@ removed rather than kept as a migration script with nothing left to migrate.
 - **A stable-recipe depth test at tiers 0, 1 and 2** — not needed, they already
   ran at lr 1e-4, but it means the `2_vs_1` rows for those tiers are directly
   comparable while tier 3's are not; use `2_vs_1_stable` for tier 3.
-- **The temporal model** — still not re-run through `tennis_gnn/`, so it emits no
-  comparable `evaluation_hash` and is excluded from every table above.

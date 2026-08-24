@@ -50,8 +50,8 @@ experimental infrastructure, not a convenience script.
   selects a named preset (`full`, `signed_game`, `set_margin`, etc.);
   `build_bidirectional_edges` is the main builder. Substantial and
   standalone because score parsing is fiddly (retirements, incomplete sets,
-  walkovers) and this is the only place it happens — both `snapshots.py` and
-  the temporal model depend on `parse_match_score`.
+  walkovers) and this is the only place it happens — `snapshots.py` depends
+  on `parse_match_score`.
 
 - **`history.py`** (203 lines) — recency-weighted per-player match history
   (12 statistics: result/game/set margins, straight-sets rate, completion
@@ -115,8 +115,8 @@ experimental infrastructure, not a convenience script.
   `aggregate`, `paired_delta`, `t_critical`). Replaces three separate
   summary scripts/notebooks that each reimplemented a slightly different
   version of the same table. Every comparison is checked to cover the exact
-  same matches/labels before any metric is computed — the check that the
-  temporal-model comparison silently failed.
+  same matches/labels before any metric is computed, so two artifacts scored
+  on different evaluation sets can never be silently compared.
 
 - **`verify_targets.py`** (101 lines) — single-purpose script: rebuild
   targets from the pipeline and assert they reproduce the frozen
@@ -223,21 +223,6 @@ gone.
   doesn't support its original claim.
 - **`REPO_REVIEW.md`** — the original first-pass repo review, kept for
   history; superseded by `TUTOR_REPORT.md`.
-- **`temporal_gnn_intransitivity/`** — the parked recurrent-state model
-  variant:
-  - `data.py` (281 lines) — builds a chronological, block-safe event stream
-    (different shape from `tennis_gnn/data.py` because the temporal model
-    consumes a sequence, not per-block graphs).
-  - `model.py` (87 lines) — `TemporalTennisGNN`, a compact recurrent
-    interaction model.
-  - `train.py` (396 lines) — its own train/eval loop, structurally parallel
-    to `tennis_gnn/train.py` but for a stateful recurrent model rather than
-    block-rebuilt graphs.
-  - `run_experiments.py` (73 lines) — CLI to run the two variants across
-    seeds.
-  - `test_temporal.py` (58 lines) — unit tests, including one asserting the
-    decoder is exactly antisymmetric.
-  - `README.md` — explains its own unresolved status.
 
 ---
 

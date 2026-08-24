@@ -1,4 +1,4 @@
-"""Build leakage-safe tabular features from the same information as the GNN."""
+# Builds leakage-safe tabular features from the same information the GNN gets.
 
 from __future__ import annotations
 
@@ -164,12 +164,11 @@ def add_pair_features(
 
 
 def phase_for_year(year: int, split=None) -> str:
-    """Phase boundaries, delegated to tennis_gnn.data.
-
-    The GNN warm-up years are never emitted as GBDT rows, so 'warmup' collapses
-    into 'train' here - the same rows either model would call trainable.
-    """
-
+    # Phase boundaries, delegated to tennis_gnn.data.
+    #
+    # The GNN warm-up years never get emitted as GBDT rows, so "warmup"
+    # collapses into "train" here - the same rows either model would call
+    # trainable.
     split = split or SCOPE_FILES["slams_masters"][2]
     phase = _phase_for_year(year, split)
     return "train" if phase == "warmup" else phase
@@ -185,8 +184,7 @@ def build_feature_dataset(
     history_years: int = 3,
     alpha_days: float = 365.0,
 ) -> pd.DataFrame:
-    """Create one pre-match row per match with block-level leakage protection."""
-
+    # Creates one pre-match row per match with block-level leakage protection.
     if tournament_scope not in SCOPE_FILES:
         raise ValueError(f"scope must be one of {tuple(SCOPE_FILES)}")
     scope_filename, scope_suffix, split = SCOPE_FILES[tournament_scope]

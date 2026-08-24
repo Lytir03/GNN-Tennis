@@ -1,37 +1,40 @@
-"""A clean two-hop-versus-one-hop test at the richest feature tier.
-
-**Why this run exists.**  The intransitivity hypothesis - that a graph model
-earns its place on matches joined through a shared opponent - is a claim about
-*depth*.  Only a two-layer model can route information along such a path; a
-one-layer model sees each player's own opponents and stops.  So the test is
-2 hops against 1 hop, holding everything else fixed.
-
-At full scope that test came out inconclusive, and for an avoidable reason.  The
-grid ran tier 3 on the recipe selected at the smaller scope (lr 3e-4), and the
-diagnostic in `new_work/twohop_diagnostic.py` showed that rate is unstable at two
-hops on five times the data: lowering it to 1e-4 recovered 0.0146 log loss and
-stabilised runtimes.  The resulting 2-hop cells were noisy enough that the
-depth interaction had a confidence interval nine times wider than tier 1's.
-
-The fix is not to compare the repaired 2-hop cells against the grid's 1-hop
-cells - those were trained at 3e-4, so the contrast would differ in two things
-at once, which is the exact error this project has been correcting throughout.
-**Both arms are retrained here at lr 1e-4**, so depth is the only difference.
-
-Cost is about 2.2 hours; it is the price of one honest answer to the project's
-central question.
-
-**And it turned out to matter for the headline too.**  At lr 1e-4 the one-hop
-model scores 0.6191, better than the *no-message* cell the grid reported at
-0.6202 - but that cell was trained at 3e-4.  The claim "the winning model uses
-no message passing" therefore rested on a comparison in which the better recipe
-was never tried on the no-message arm.  `--hops none` runs it, at 36 seconds a
-seed, so the three-way comparison at a single recipe settles whether message
-passing is worth anything at the richest tier.
-
-Run: python new_work/depth_test.py                 # 1 and 2 hops
-     python new_work/depth_test.py --hops none     # the control, ~3 minutes
-"""
+# A clean two-hop-versus-one-hop test at the richest feature tier.
+#
+# Why this run exists: the intransitivity hypothesis - that a graph model
+# earns its place on matches joined through a shared opponent - is a
+# claim about depth. Only a two-layer model can route information along
+# that kind of path; a one-layer model sees each player's own opponents
+# and stops. So the test is 2 hops against 1 hop, holding everything else
+# fixed.
+#
+# At full scope that test came out inconclusive, for an avoidable reason.
+# The grid ran tier 3 on the recipe selected at the smaller scope
+# (lr 3e-4), and the diagnostic in new_work/twohop_diagnostic.py showed
+# that rate is unstable at two hops on five times the data: dropping it
+# to 1e-4 recovered 0.0146 log loss and stabilised runtimes. The
+# resulting 2-hop cells were noisy enough that the depth interaction had
+# a confidence interval nine times wider than tier 1's.
+#
+# The fix isn't to compare the repaired 2-hop cells against the grid's
+# 1-hop cells - those were trained at 3e-4, so the contrast would differ
+# in two things at once, which is the exact error this project has been
+# correcting throughout. Both arms are retrained here at lr 1e-4, so
+# depth is the only difference.
+#
+# Cost is about 2.2 hours; that's the price of one honest answer to the
+# project's central question.
+#
+# It turned out to matter for the headline too. At lr 1e-4 the one-hop
+# model scores 0.6191, better than the no-message cell the grid reported
+# at 0.6202 - but that cell was trained at 3e-4. So the claim "the
+# winning model uses no message passing" rested on a comparison where the
+# better recipe was never tried on the no-message arm. --hops none runs
+# it, at 36 seconds a seed, so the three-way comparison at a single
+# recipe settles whether message passing is worth anything at the
+# richest tier.
+#
+# Run: python new_work/depth_test.py                 # 1 and 2 hops
+#      python new_work/depth_test.py --hops none     # the control, ~3 minutes
 
 from __future__ import annotations
 
@@ -60,8 +63,7 @@ def artifact_for(hops) -> str:
 
 
 def config_for(model, hops):
-    """`none` disables messages while keeping every layer and LayerNorm."""
-
+    # "none" disables messages while keeping every layer and LayerNorm.
     if hops == "none":
         return replace(model, num_layers=1, disable_message_passing=True)
     return replace(model, num_layers=int(hops))

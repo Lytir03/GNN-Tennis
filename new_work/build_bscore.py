@@ -1,30 +1,29 @@
-"""Rebuild the B-score snapshots, parameterised by scope and surface.
-
-This replaces four near-identical notebooks (`preprocess/graph.ipynb` and its
-`_clay1`, `_grass1`, `_hard1` copies) that differ only in a surface filter and
-their output filenames.
-
-**The logic is reproduced exactly, not improved.**  That is the point: the
-verification step below runs this over the *current* tournament scope and
-requires it to reproduce the published snapshots to the last bit.  Only once
-that passes is it safe to change the scope, because then any difference in the
-downstream results is attributable to the data and not to a redefinition.
-
-Method, following the original:
-
-* history is 2006-01-01 to 2010-12-31, the rolling period is 2011 onwards;
-* for each tournament-round block, build a directed graph loser -> winner over
-  every match played before it, weighting each by 1 / (1 + age_days / 365);
-* B-score is the weighted eigenvector centrality of that graph, so beating a
-  strong player is worth more than beating a weak one;
-* the block's players are scored from the graph *before* the block, then the
-  block is appended to the history - which is what keeps it leakage-free.
-
-Usage
------
-    python new_work/build_bscore.py --verify           # reproduce & compare
-    python new_work/build_bscore.py --scope full       # rebuild wider
-"""
+# Rebuilds the B-score snapshots, parameterised by scope and surface.
+#
+# This replaces four near-identical notebooks (preprocess/graph.ipynb and
+# its _clay1, _grass1, _hard1 copies) that only differed in a surface
+# filter and their output filenames.
+#
+# The logic is reproduced exactly, not improved - that's the whole point.
+# The verification step below runs this over the current tournament scope
+# and requires it to reproduce the published snapshots to the last bit.
+# Only once that passes is it safe to change the scope, because then any
+# difference in the downstream results is attributable to the data and
+# not to a redefinition.
+#
+# Method, following the original:
+# - history is 2006-01-01 to 2010-12-31, the rolling period is 2011 onwards
+# - for each tournament-round block, build a directed graph loser -> winner
+#   over every match played before it, weighting each by 1 / (1 + age_days / 365)
+# - B-score is the weighted eigenvector centrality of that graph, so
+#   beating a strong player is worth more than beating a weak one
+# - the block's players are scored from the graph before the block, then
+#   the block gets appended to the history - that's what keeps it
+#   leakage-free
+#
+# Usage:
+#   python new_work/build_bscore.py --verify           # reproduce & compare
+#   python new_work/build_bscore.py --scope full       # rebuild wider
 
 from __future__ import annotations
 
@@ -74,8 +73,7 @@ SURFACES = {
 
 
 def load_matches(scope: str) -> pd.DataFrame:
-    """Assemble the match table for a scope, straight from raw."""
-
+    # Assembles the match table for a scope, straight from raw.
     frames = [
         pd.read_csv(path, low_memory=False)
         for path in sorted(RAW.glob("atp_matches_[0-9]*.csv"))
@@ -140,8 +138,7 @@ def compute_bscore(graph: nx.DiGraph) -> dict:
 def build_snapshots(
     matches: pd.DataFrame, surface: str | None, *, verbose: bool = True
 ) -> tuple[pd.DataFrame, float]:
-    """Roll the B-score forward one tournament-round at a time."""
-
+    # Rolls the B-score forward one tournament-round at a time.
     if surface is not None:
         matches = matches[matches["surface"] == surface]
 
@@ -220,8 +217,7 @@ def build_snapshots(
 
 
 def verify() -> int:
-    """Reproduce the published snapshots on the current scope, exactly."""
-
+    # Reproduces the published snapshots on the current scope, exactly.
     matches = load_matches("current")
     print(f"Rebuilding on the current scope ({len(matches)} matches)\n")
     ok = True

@@ -1,24 +1,26 @@
-"""Sweep every frozen artifact for the anomalies that hide broken runs.
-
-Written after a broken temperature fit sat undetected in 18 artifacts for weeks.
-It was found by chasing one odd number by hand; this does that sweep for all of
-them, so the next one is found by running a script rather than by luck.
-
-Each check is a property that should hold of *any* honest run, so a violation is
-always worth an explanation - not necessarily a bug, but never nothing:
-
-  degenerate      the model emits (almost) one probability: it learnt nothing,
-                  or something upstream is not reaching it
-  extreme T       a temperature far from 1, or sitting on the +-4 log clamp,
-                  which is the signature of a fit that failed rather than one
-                  that found something
-  worse than 0.5  test log loss above the coin flip: a model that is actively
-                  anti-predictive
-  overconfident   probabilities pinned at the extremes, where log loss explodes
-  hash mismatch   the CSV no longer matches the manifest that describes it
-
-Run: python new_work/audit_artifacts.py [--scope full]
-"""
+# Sweeps every frozen artifact for the anomalies that hide broken runs.
+#
+# Written after a broken temperature fit sat undetected in 18 artifacts
+# for weeks. It got found by chasing one odd number by hand; this does
+# that sweep for all of them, so the next one gets found by running a
+# script instead of by luck.
+#
+# Each check is a property that should hold for any honest run, so a
+# violation is always worth an explanation - not necessarily a bug, but
+# never nothing:
+#
+#   degenerate      the model emits (almost) one probability: it learnt
+#                   nothing, or something upstream isn't reaching it
+#   extreme T       a temperature far from 1, or sitting on the +-4 log
+#                   clamp, which is the signature of a fit that failed
+#                   rather than one that found something
+#   worse than 0.5  test log loss above the coin flip: a model that's
+#                   actively anti-predictive
+#   overconfident   probabilities pinned at the extremes, where log loss
+#                   explodes
+#   hash mismatch   the CSV no longer matches the manifest describing it
+#
+# Run: python new_work/audit_artifacts.py [--scope full]
 
 from __future__ import annotations
 

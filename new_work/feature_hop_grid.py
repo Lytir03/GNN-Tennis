@@ -1,26 +1,30 @@
-"""Feature richness x receptive field: does the graph substitute for history?
-
-The "none" column keeps every layer, parameter and LayerNorm and removes only
-the messages.  An earlier version used num_layers=0, which also deletes the
-normalisation, and a control has to remove one thing.
-
-That reasoning stands; the evidence originally given for it does not.  The
-`num_layers=0` cell was reported as diverging to 2.89 log loss, and that was
-blamed on unnormalised height (~185) sitting beside B-scores (<1).  It was
-mostly a broken temperature fit - see `new_work/recalibrate.py`.  Repaired, the
-cell scores 0.652 against the honest control's 0.624: still worse, not
-divergent.  The control is right for the reason stated in the first paragraph,
-which is a design argument and needs no dramatic number behind it.
-
-The hop count is the intervention and the feature tier is the moderator.  Read
-the grid down a column: as the model is given more per-player information, the
-value of message passing should fall to zero and then go negative, because the
-graph was only ever reconstructing that information.
-
-Recipes are per tier, each chosen by a validation-only search, because a recipe
-is selected *for* an architecture.  The recipe is held fixed across the hop axis
-within a tier, which is what keeps every hop contrast one-factor.
-"""
+# Feature richness x receptive field: does the graph substitute for history?
+#
+# The "none" column keeps every layer, parameter and LayerNorm and only
+# removes the messages. An earlier version used num_layers=0, which also
+# deletes the normalisation, and a control has to remove exactly one
+# thing.
+#
+# That reasoning still stands; the evidence originally given for it
+# doesn't. The num_layers=0 cell was reported as diverging to 2.89 log
+# loss, blamed on unnormalised height (~185) sitting beside B-scores
+# (<1). It was mostly a broken temperature fit (the fix that produced
+# this correction has since been applied and its one-off script
+# removed). Repaired, the cell scores 0.652 against the honest control's
+# 0.624 - still worse, not divergent. The control is right for the
+# reason in the first paragraph, which is a design argument and doesn't
+# need a dramatic number behind it.
+#
+# The hop count is the intervention and the feature tier is the
+# moderator. Read the grid down a column: as the model gets more
+# per-player information, the value of message passing should fall to
+# zero and then go negative, since the graph was only ever
+# reconstructing that information.
+#
+# Recipes are per tier, each chosen by a validation-only search, because
+# a recipe gets selected for an architecture. The recipe is held fixed
+# across the hop axis within a tier, which is what keeps every hop
+# contrast one-factor.
 
 from __future__ import annotations
 

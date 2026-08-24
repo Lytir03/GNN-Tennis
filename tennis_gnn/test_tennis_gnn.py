@@ -1,4 +1,4 @@
-"""Tests for the consolidated GNN package."""
+# Tests for the consolidated GNN package.
 
 from __future__ import annotations
 
@@ -88,8 +88,7 @@ class TestAntisymmetricDecoder(unittest.TestCase):
         )
 
     def test_plain_decoder_is_not_antisymmetric(self) -> None:
-        """Guards the claim that the constraint is not free."""
-
+        # Guards the claim that the constraint isn't free.
         from dataclasses import replace
 
         model = build(replace(BASE_MODEL, antisymmetric_decoder=False))
@@ -107,14 +106,11 @@ class TestAntisymmetricDecoder(unittest.TestCase):
 
 class TestOneFactorAblations(unittest.TestCase):
     def test_each_ablation_changes_exactly_one_field(self) -> None:
-        """The previous ablation set was cumulative.
-
-        Every entry inherited all earlier changes, so an early harmful step
-        contaminated every later result and no entry measured the factor named
-        in its own title.  This test makes that mistake impossible to
-        reintroduce silently.
-        """
-
+        # The previous ablation set was cumulative. Every entry inherited
+        # all earlier changes, so an early harmful step contaminated
+        # every later result and no entry measured the factor named in
+        # its own title. This test makes that mistake impossible to
+        # reintroduce silently.
         base = asdict(BASE_MODEL)
         offenders = {}
         for name, config in one_factor_ablations().items():
@@ -201,7 +197,7 @@ if __name__ == "__main__":
 
 
 class TestHistoryParity(unittest.TestCase):
-    """The GNN's node history must be the GBDT's history, not a lookalike."""
+    # The GNN's node history has to be the GBDT's history, not a lookalike.
 
     def test_history_feature_layout_is_stable(self):
         from tennis_gnn.history import (
@@ -271,7 +267,7 @@ class TestHistoryParity(unittest.TestCase):
 
 
 class TestDecoderRoutedHistory(unittest.TestCase):
-    """History routed to the decoder must not break the antisymmetry guarantee."""
+    # History routed to the decoder must not break the antisymmetry guarantee.
 
     def _graph(self, node_dim=18, n=6):
         import torch
@@ -316,7 +312,7 @@ class TestDecoderRoutedHistory(unittest.TestCase):
         torch.testing.assert_close(forward, -reverse, atol=1e-5, rtol=1e-4)
 
     def test_decoder_history_actually_reaches_the_head(self):
-        """Changing only the history block must change the prediction."""
+        # Changing only the history block must change the prediction.
         import torch
 
         data = self._graph()
@@ -333,7 +329,7 @@ class TestDecoderRoutedHistory(unittest.TestCase):
         self.assertFalse(torch.allclose(before, after))
 
     def test_decoder_history_does_not_touch_the_encoder(self):
-        """The encoder must see only the legacy six columns."""
+        # The encoder must see only the legacy six columns.
         import torch
 
         data = self._graph()
@@ -346,7 +342,7 @@ class TestDecoderRoutedHistory(unittest.TestCase):
 
 
 class TestZeroHopControl(unittest.TestCase):
-    """num_layers=0 must remove the graph entirely, not merely weaken it."""
+    # num_layers=0 must remove the graph entirely, not merely weaken it.
 
     def test_zero_hop_ignores_edges(self):
         import torch
@@ -388,12 +384,11 @@ class TestZeroHopControl(unittest.TestCase):
 
 
 class TestTemperatureRobustness(unittest.TestCase):
-    """A failed calibration must degrade to T=1, never to NaN.
-
-    A non-finite temperature is the worst kind of bug here: it is silent, and it
-    poisons every probability in the run - including phases the fit never saw,
-    because the temperature is applied globally.
-    """
+    # A failed calibration must degrade to T=1, never to NaN.
+    #
+    # A non-finite temperature is the worst kind of bug here: it's silent,
+    # and it poisons every probability in the run - including phases the
+    # fit never saw, because the temperature applies globally.
 
     def test_uninformative_logits_do_not_produce_nan(self):
         import numpy as np
@@ -437,7 +432,7 @@ class TestTemperatureRobustness(unittest.TestCase):
 
 
 class TestNoMessagePassingControl(unittest.TestCase):
-    """disable_message_passing must remove messages and nothing else."""
+    # disable_message_passing must remove messages and nothing else.
 
     def _data(self):
         import torch
@@ -479,7 +474,7 @@ class TestNoMessagePassingControl(unittest.TestCase):
         torch.testing.assert_close(before, after)
 
     def test_keeps_the_same_parameters_as_the_graph_model(self):
-        """The control must differ from the real model only in its input."""
+        # The control must differ from the real model only in its input.
         control = self._model(disable_message_passing=True)
         graph = self._model()
         self.assertEqual(
@@ -496,18 +491,19 @@ class TestNoMessagePassingControl(unittest.TestCase):
 
 
 class TestTemperatureRecoversKnownScaling(unittest.TestCase):
-    """The fit must find the optimum on *both* sides of T=1.
-
-    The failure this locks down: `fit_temperature` ran LBFGS without a line
-    search, so on an under-confident model - where the optimum is below one - it
-    stepped straight past the minimum to the clamp at T=0.0183.  Every such
-    model in the project went uncalibrated, and several were made far worse than
-    if calibration had been skipped: one cell was assigned T=0.0183 and scored
-    2.89 test log loss where the correct fit gives 0.65.
-
-    Generating data at a known temperature and requiring the fit to recover it
-    tests the thing that actually broke, rather than only the NaN guard above.
-    """
+    # The fit must find the optimum on both sides of T=1.
+    #
+    # The failure this locks down: fit_temperature ran LBFGS without a
+    # line search, so on an under-confident model - where the optimum is
+    # below one - it stepped straight past the minimum to the clamp at
+    # T=0.0183. Every such model in the project went uncalibrated, and
+    # several were made far worse than if calibration had been skipped:
+    # one cell was assigned T=0.0183 and scored 2.89 test log loss where
+    # the correct fit gives 0.65.
+    #
+    # Generating data at a known temperature and requiring the fit to
+    # recover it tests the thing that actually broke, rather than only
+    # the NaN guard above.
 
     # The overshoot only appears when the logits are small, which is exactly
     # the regime the affected models were in: the tier-1 no-message cell had a
@@ -542,13 +538,11 @@ class TestTemperatureRecoversKnownScaling(unittest.TestCase):
         self.assertGreater(fit_temperature(logits, y), 0.05)
 
     def test_calibration_never_loses_to_not_calibrating(self):
-        """T=1 is feasible, so a correct fit cannot score worse than it.
-
-        This is the invariant that makes the whole procedure safe, and the one
-        the broken fit violated.  It is checked on the fitting set, where it
-        holds by construction; out of sample it need not.
-        """
-
+        # T=1 is feasible, so a correct fit can't score worse than it.
+        #
+        # This is the invariant that makes the whole procedure safe, and
+        # the one the broken fit violated. It's checked on the fitting
+        # set, where it holds by construction; out of sample it need not.
         def nll(logits, y, temperature):
             p = np.clip(1.0 / (1.0 + np.exp(-logits / temperature)), 1e-9, 1 - 1e-9)
             return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))

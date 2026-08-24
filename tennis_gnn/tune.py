@@ -1,14 +1,13 @@
-"""Validation-selected hyperparameter search for the GNN.
-
-The GBDT baseline in this repository was given 32 tuned configurations, chosen
-on the 2016 validation year.  The GNN was given none: it ran one fixed recipe
-(2 optimiser steps per block at lr 1e-4) that nobody ever searched over.  Any
-comparison between the two was therefore a comparison of a tuned model against
-an untuned one.
-
-This module gives the GNN the same treatment under the same rule: select on
-validation log loss, never on test.
-"""
+# Validation-selected hyperparameter search for the GNN.
+#
+# The GBDT baseline in this repo got 32 tuned configurations, chosen on
+# the 2016 validation year. The GNN got none: it ran one fixed recipe (2
+# optimiser steps per block at lr 1e-4) that nobody ever searched over. So
+# any comparison between the two was really a comparison of a tuned model
+# against an untuned one.
+#
+# This module gives the GNN the same treatment under the same rule:
+# select on validation log loss, never on test.
 
 from __future__ import annotations
 
@@ -35,20 +34,19 @@ from tennis_gnn.train import metrics, run_experiment  # noqa: E402
 
 
 def focused_space() -> list[TrainConfig]:
-    """A small search around a known optimum, for expensive scopes.
-
-    The 21-configuration grid costs about 6.2 hours at the full scope, most of
-    it in configurations that were never competitive: the `replay_batch_size=None`
-    entries replay the whole 200-graph buffer every step and scored 0.5527
-    against the winner's 0.5453 on the smaller scope.
-
-    So this searches the axis that actually matters when the data grows -
-    how much optimisation - around the recipe the full grid already selected
-    (lr 3e-4, 4 steps, mini-batch 32, one pass).  It is a smaller search and
-    should be reported as one: a schedule far from this neighbourhood would not
-    be found.
-    """
-
+    # A small search around a known optimum, for expensive scopes.
+    #
+    # The 21-configuration grid costs about 6.2 hours at the full scope,
+    # most of it in configurations that were never competitive: the
+    # replay_batch_size=None entries replay the whole 200-graph buffer
+    # every step and scored 0.5527 against the winner's 0.5453 on the
+    # smaller scope.
+    #
+    # So this searches the axis that actually matters when the data grows
+    # - how much optimisation - around the recipe the full grid already
+    # picked (lr 3e-4, 4 steps, mini-batch 32, one pass). It's a smaller
+    # search and should be reported as one: a schedule far from this
+    # neighbourhood wouldn't be found.
     return [
         TrainConfig(learning_rate=lr, steps_per_block=steps,
                     replay_batch_size=32, passes=passes)
@@ -64,14 +62,13 @@ def focused_space() -> list[TrainConfig]:
 
 
 def search_space() -> list[TrainConfig]:
-    """A staged grid over the optimisation recipe.
-
-    The diagnosis driving these choices: the original recipe performed roughly
-    670 optimiser steps in total, on a head initialised to output exactly zero.
-    The model barely moved away from its B-score prior, so the search
-    concentrates on how much optimisation happens and how it is regularised.
-    """
-
+    # A staged grid over the optimisation recipe.
+    #
+    # What drove these choices: the original recipe did roughly 670
+    # optimiser steps in total, on a head initialised to output exactly
+    # zero. The model barely moved away from its B-score prior, so the
+    # search concentrates on how much optimisation happens and how it's
+    # regularised.
     configs: list[TrainConfig] = []
 
     # Stage 1 - how much optimisation, and at what step size.

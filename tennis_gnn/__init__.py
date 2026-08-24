@@ -1,4 +1,4 @@
-"""Consolidated tennis GNN experiment package."""
+# all the tennis GNN experiment code, in one package
 
 from tennis_gnn.config import (
     BASE_MODEL,

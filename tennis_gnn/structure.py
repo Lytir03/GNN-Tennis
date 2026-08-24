@@ -1,22 +1,23 @@
-"""Graph-structural descriptors for each predicted match.
-
-The point of these is to test *where* a graph model could possibly beat a
-tabular one.  The GBDT baseline receives 72 features, and every history feature
-among them is a **one-hop aggregate of a single player's own record** (result
-balance, game and set margins, straight-sets rate, completion rate, on all
-surfaces and on the match surface).  It has no head-to-head feature and no
-common-opponent feature.
-
-So the tabular model already has the one-hop view.  The only information a
-message-passing model can add is relational: how *these two players* connect
-through the graph - a direct previous meeting, or a shared opponent two hops
-away.  If the GNN has any structural advantage at all, it has to show up in the
-matches where that connection exists and is informative.  If it does not show up
-there, the graph is not buying anything anywhere.
-
-These descriptors are symmetric in (a, b) and depend only on the graph, never on
-the orientation draw, so one pass over any seed's snapshots labels every seed.
-"""
+# Graph-structural descriptors for each predicted match.
+#
+# The point of these is to test WHERE a graph model could possibly beat a
+# tabular one. The GBDT baseline gets 72 features, and every history
+# feature among them is a one-hop aggregate of a single player's own
+# record (result balance, game and set margins, straight-sets rate,
+# completion rate, on all surfaces and on the match surface). No
+# head-to-head feature, no common-opponent feature.
+#
+# So the tabular model already has the one-hop view. The only thing a
+# message-passing model can add is relational: how these two players
+# connect through the graph - a direct previous meeting, or a shared
+# opponent two hops away. If the GNN has any structural advantage, it has
+# to show up in the matches where that connection exists and is
+# informative. If it doesn't show up there, the graph isn't buying
+# anything anywhere.
+#
+# These descriptors are symmetric in (a, b) and depend only on the graph,
+# never on the orientation draw, so one pass over any seed's snapshots
+# labels every seed.
 
 from __future__ import annotations
 
@@ -33,12 +34,11 @@ from tennis_gnn.snapshots import BlockSnapshot  # noqa: E402
 
 
 def block_structure(snapshot: BlockSnapshot) -> pd.DataFrame:
-    """Per-match structural descriptors for one block.
-
-    ``edge_index`` holds the matches played *before* this block, already
-    bidirectional, so each historical meeting contributes two directed edges.
-    """
-
+    # Per-match structural descriptors for one block.
+    #
+    # edge_index holds the matches played before this block, already
+    # bidirectional, so each historical meeting contributes two directed
+    # edges.
     neighbours: dict[int, set[int]] = defaultdict(set)
     meetings: dict[tuple[int, int], int] = defaultdict(int)
     source, target = snapshot.edge_index.tolist()
@@ -76,8 +76,7 @@ def block_structure(snapshot: BlockSnapshot) -> pd.DataFrame:
 
 
 def structure_table(snapshots) -> pd.DataFrame:
-    """Structural descriptors for every match in every block."""
-
+    # Structural descriptors for every match in every block.
     return pd.concat(
         [block_structure(snapshot) for snapshot in snapshots],
         ignore_index=True,
@@ -85,13 +84,11 @@ def structure_table(snapshots) -> pd.DataFrame:
 
 
 def add_strata(frame: pd.DataFrame) -> pd.DataFrame:
-    """Attach the pre-specified stratum labels used in the analysis.
-
-    Cut points are chosen from the *distribution* of the descriptors, not from
-    any model's performance, so that the strata cannot be tuned to produce a
-    result.
-    """
-
+    # Attaches the pre-specified stratum labels used in the analysis.
+    #
+    # Cut points are chosen from the distribution of the descriptors, not
+    # from any model's performance, so the strata can't be tuned to
+    # produce a result.
     frame = frame.copy()
     frame["h2h_stratum"] = pd.cut(
         frame["head_to_head"],

@@ -1,17 +1,15 @@
-"""Training, calibration and evaluation for the tennis GNN.
-
-Protocol (unchanged from the original experiment):
-
-* the graph for a block is built only from matches played before it;
-* gradient updates happen on training blocks only (2012-2015);
-* validation (2016) and test (2017-2020) are predicted by the frozen
-  end-of-training model, on a graph that keeps growing.
-
-Because no parameter ever changes after the last training block, training and
-evaluation can be separated into two passes without altering a single
-validation or test prediction.  That separation is what allows several
-optimisation passes over the training years.
-"""
+# Training, calibration and evaluation for the tennis GNN.
+#
+# Protocol (unchanged from the original experiment):
+# - the graph for a block is built only from matches played before it
+# - gradient updates happen on training blocks only (2012-2015)
+# - validation (2016) and test (2017-2020) get predicted by the frozen
+#   end-of-training model, on a graph that keeps growing
+#
+# Because no parameter ever changes after the last training block, training
+# and evaluation can be split into two passes without touching a single
+# validation or test prediction. That's what makes it possible to do
+# several optimisation passes over the training years.
 
 from __future__ import annotations
 
@@ -39,13 +37,11 @@ DEVICE = torch.device("cpu")
 
 
 def to_pyg(snapshot: BlockSnapshot) -> Data:
-    """Wrap a snapshot as a PyG graph, keeping the raw B-score channel.
-
-    ``raw_bscore_general`` is kept beside ``x`` because the decoder consumes it
-    directly as a skill prior; it must survive the node-feature ablations that
-    zero or standardise ``x``.
-    """
-
+    # Wraps a snapshot as a PyG graph, keeping the raw B-score channel.
+    #
+    # raw_bscore_general is kept beside x because the decoder consumes it
+    # directly as a skill prior; it has to survive the node-feature
+    # ablations that zero or standardise x.
     return Data(
         x=snapshot.x,
         edge_index=snapshot.edge_index,
@@ -72,14 +68,12 @@ def _make_batch(items: Sequence[tuple], device: torch.device):
 def fit_temperature(
     logits: np.ndarray, y: np.ndarray, *, max_iter: int = 300
 ) -> float:
-    """Fit a single temperature by minimising validation NLL.
-
-    Dividing every logit by one positive scalar cannot reorder predictions, so
-    accuracy and AUC are untouched; only confidence is rescaled.  This is the
-    cheapest honest way to fix a model that ranks well but is overconfident,
-    and it is fitted on validation only.
-    """
-
+    # Fits a single temperature by minimising validation NLL.
+    #
+    # Dividing every logit by one positive scalar can't reorder
+    # predictions, so accuracy and AUC are untouched - only confidence
+    # gets rescaled. This is the cheapest honest way to fix a model that
+    # ranks well but is overconfident, and it's fitted on validation only.
     if len(logits) == 0:
         return 1.0
     logit_tensor = torch.tensor(logits, dtype=torch.float)
@@ -153,13 +147,11 @@ def run_experiment(
     verbose: bool = True,
     eval_phases: Iterable[str] | None = None,
 ) -> dict:
-    """Fit the model and return frozen per-match predictions.
-
-    ``eval_phases`` restricts the frozen evaluation pass.  A hyperparameter
-    search only needs validation, and skipping the other 80% of the timeline
-    roughly halves the cost of each configuration.
-    """
-
+    # Fits the model and returns frozen per-match predictions.
+    #
+    # eval_phases restricts the frozen evaluation pass. A hyperparameter
+    # search only needs validation, and skipping the other 80% of the
+    # timeline roughly halves the cost of each configuration.
     init_seed = train_config.effective_init_seed
     torch.manual_seed(init_seed)
     np.random.seed(init_seed)
@@ -353,20 +345,20 @@ def run_ensemble(
     members: int = 5,
     verbose: bool = True,
 ) -> dict:
-    """Average several independently initialised models on the same data.
-
-    The data seed is held fixed so every member solves an identical problem
-    with identical labels; only the initialisation and replay sampling differ.
-    Averaging probabilities preserves the decoder's antisymmetry, because a
-    mean of complementary pairs is still complementary.
-
-    Note that this is only a fair comparison against a baseline that has been
-    given the same treatment.  Gradient-boosted trees fitted on identical data
-    with a different `random_state` are very nearly the same model, so they
-    gain almost nothing from it - that asymmetry is a real property of the two
-    model families, not a trick, but it must be stated when reporting.
-    """
-
+    # Averages several independently initialised models on the same data.
+    #
+    # The data seed is held fixed so every member solves an identical
+    # problem with identical labels; only the initialisation and replay
+    # sampling differ. Averaging probabilities preserves the decoder's
+    # antisymmetry, since a mean of complementary pairs is still
+    # complementary.
+    #
+    # Note this is only a fair comparison against a baseline that got the
+    # same treatment. Gradient-boosted trees fitted on identical data with
+    # a different random_state are very nearly the same model, so they
+    # gain almost nothing from ensembling - that's a real property of the
+    # two model families, not a trick, but it needs to be stated when
+    # reporting.
     frames = []
     temperature_values = []
     for member in range(members):

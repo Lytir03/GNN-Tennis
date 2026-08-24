@@ -1,9 +1,8 @@
-"""Score-derived, directional edge features for tennis match graphs.
-
-The score in the Sackmann ATP data is written from the recorded winner's
-perspective.  Consequently, a parsed game or set margin is positive for the
-loser -> winner edge and its sign is inverted for winner -> loser.
-"""
+# Score-derived, directional edge features for tennis match graphs.
+#
+# The score in the Sackmann ATP data is written from the recorded winner's
+# perspective. So a parsed game or set margin is positive on the
+# loser -> winner edge and flipped for winner -> loser.
 
 from __future__ import annotations
 
@@ -24,8 +23,7 @@ _OTHER_INCOMPLETE_RE = re.compile(
 
 @dataclass(frozen=True)
 class MatchScoreFeatures:
-    """Features parsed once from a winner-perspective score."""
-
+    # Features parsed once from a winner-perspective score.
     relative_game_diff: float
     set_margin_scaled: float
     straight_sets_flag: float
@@ -37,8 +35,7 @@ class MatchScoreFeatures:
 
 @dataclass(frozen=True)
 class EdgeFeatureConfig:
-    """Selects an ablation without changing the rest of the experiment."""
-
+    # Picks an edge-feature ablation without touching the rest of the run.
     signed_game_margin: bool = True
     include_set_margin: bool = False
     include_straight_sets: bool = False
@@ -96,8 +93,7 @@ def _is_missing(value: Any) -> bool:
 
 
 def _is_completed_set(winner_games: int, loser_games: int) -> bool:
-    """Recognise normal, advantage and match-tiebreak set scores."""
-
+    # Recognises normal, advantage, and match-tiebreak set scores.
     high = max(winner_games, loser_games)
     low = min(winner_games, loser_games)
     if high == 7 and low in {5, 6}:
@@ -113,14 +109,13 @@ def parse_match_score(
     *,
     incomplete_margin_policy: str = "zero",
 ) -> MatchScoreFeatures:
-    """Parse granular match features without using aggregate player ratings.
-
-    Incomplete matches are detected from their score marker.  With the default
-    ``zero`` policy, their game/set margins are zeroed and straight-sets is
-    false.  ``played`` retains margins from the games and completed sets that
-    were actually played before the interruption.
-    """
-
+    # Parses granular match features without leaning on aggregate player
+    # ratings.
+    #
+    # Incomplete matches are spotted from their score marker. With the
+    # default "zero" policy their game/set margins get zeroed and
+    # straight-sets is false. "played" keeps the margins from the games and
+    # completed sets that actually happened before the interruption.
     if incomplete_margin_policy not in {"zero", "played"}:
         raise ValueError("incomplete_margin_policy must be 'zero' or 'played'")
 
@@ -299,8 +294,7 @@ def build_bidirectional_edges(
     *,
     alpha_days: float = 365.0,
 ) -> tuple[list[list[int]], list[list[float]], dict[str, int]]:
-    """Build loser->winner and winner->loser edges from historical matches."""
-
+    # Builds loser->winner and winner->loser edges from historical matches.
     edge_pairs: list[list[int]] = []
     edge_attributes: list[list[float]] = []
     stats = {
@@ -391,8 +385,7 @@ def with_incomplete_policy(
     policy: str,
     exclude_unparseable: bool = False,
 ) -> EdgeFeatureConfig:
-    """Convenience helper for sensitivity tests on incomplete matches."""
-
+    # Convenience helper for sensitivity tests on incomplete matches.
     return replace(
         config,
         incomplete_margin_policy=policy,

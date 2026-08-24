@@ -1,28 +1,29 @@
-"""Stratified comparison of two models over graph-structural subgroups.
-
-This exists to answer one question: *is the graph buying anything?*  The tabular
-baseline already receives one-hop history aggregates for each player, so the
-only thing message passing can add is relational - how the two players connect
-through shared opponents.
-
-Two warnings are built into how this reports, because subgroup analysis is the
-easiest way in the world to fool yourself:
-
-1. **Multiple comparisons.**  Every stratum is a hypothesis test.  Slice a null
-   result finely enough and some cell will clear a 95% interval.  The number of
-   comparisons is printed with the results so it cannot be quietly forgotten.
-
-2. **Confounding.**  Structural descriptors correlate with how much data a
-   player has, and data richness independently changes which model wins.  A
-   marginal subgroup difference is therefore not evidence about structure until
-   sparsity is controlled - and controlling it here reverses the sign, which is
-   exactly the trap this module is meant to make visible.
-
-The trustworthy test is not in this file at all: it is the ``one_hop`` /
-``three_hop`` ablation in ``config.py``, which *intervenes* on the receptive
-field instead of correlating with it.  Use these tables to describe where models
-differ, and the depth ablation to decide why.
-"""
+# Stratified comparison of two models over graph-structural subgroups.
+#
+# This exists to answer one question: is the graph buying anything? The
+# tabular baseline already gets one-hop history aggregates for each
+# player, so the only thing message passing can add is relational - how
+# the two players connect through shared opponents.
+#
+# Two warnings are baked into how this reports, because subgroup analysis
+# is about the easiest way there is to fool yourself:
+#
+# 1. Multiple comparisons. Every stratum is a hypothesis test. Slice a
+#    null result finely enough and some cell will clear a 95% interval.
+#    The number of comparisons gets printed with the results so it can't
+#    be quietly forgotten.
+#
+# 2. Confounding. Structural descriptors correlate with how much data a
+#    player has, and data richness independently changes which model
+#    wins. So a marginal subgroup difference isn't evidence about
+#    structure until sparsity is controlled - and controlling it here
+#    flips the sign, which is exactly the trap this module is meant to
+#    make visible.
+#
+# The trustworthy test isn't in this file at all - it's the one_hop /
+# three_hop ablation in config.py, which intervenes on the receptive
+# field instead of just correlating with it. Use these tables to describe
+# where models differ, and the depth ablation to figure out why.
 
 from __future__ import annotations
 
@@ -62,8 +63,7 @@ def paired_frame(
     *,
     phase: str = "test",
 ) -> pd.DataFrame:
-    """Per-match paired losses for two models, joined to structural strata."""
-
+    # Per-match paired losses for two models, joined to structural strata.
     frames = []
     for seed in seeds:
         directory = root / "results/frozen_predictions" / scope / f"seed_{seed}"
@@ -98,13 +98,11 @@ def paired_frame(
 
 
 def stratum_table(data: pd.DataFrame, by: str) -> pd.DataFrame:
-    """Seed-level paired deltas within each stratum.
-
-    Averaging within (stratum, seed) first, then treating seeds as the unit of
-    replication, is what keeps the interval honest: matches within a seed share
-    a model fit and are not independent.
-    """
-
+    # Seed-level paired deltas within each stratum.
+    #
+    # Averaging within (stratum, seed) first, then treating seeds as the
+    # unit of replication, is what keeps the interval honest: matches
+    # within a seed share a model fit and aren't independent.
     per_seed = (
         data.groupby([by, "seed"], observed=True)
         .agg(
@@ -140,14 +138,12 @@ def stratum_table(data: pd.DataFrame, by: str) -> pd.DataFrame:
 
 
 def interaction_test(data: pd.DataFrame, by: str) -> pd.DataFrame:
-    """Difference of paired deltas between two strata, paired by seed.
-
-    This is the test a subgroup claim actually needs.  "The model wins in
-    stratum A" is not evidence that the stratum matters - the model might win
-    everywhere.  The claim is only about structure if the advantage in A is
-    *larger than* the advantage outside A, which is this contrast.
-    """
-
+    # Difference of paired deltas between two strata, paired by seed.
+    #
+    # This is the test a subgroup claim actually needs. "The model wins in
+    # stratum A" isn't evidence the stratum matters - the model might win
+    # everywhere. It's only about structure if the advantage in A is
+    # bigger than the advantage outside A, which is this contrast.
     per_seed = (
         data.groupby([by, "seed"], observed=True)["delta"].mean().unstack(0)
     )

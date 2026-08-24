@@ -1,12 +1,11 @@
-"""Build the per-block graph snapshots once and cache them.
-
-A snapshot depends only on the data and the edge-feature preset - never on the
-model or the optimiser.  The original notebook rebuilt every graph inside the
-training loop, which meant a hyperparameter search would have paid the graph
-construction cost once per configuration.  Building them once and caching turns
-a search from hours into minutes, and is the single change that makes tuning
-the GNN affordable at all.
-"""
+# Builds the per-block graph snapshots once and caches them.
+#
+# A snapshot only depends on the data and the edge-feature preset - never
+# on the model or the optimiser. The original notebook rebuilt every graph
+# inside the training loop, so a hyperparameter search paid the graph
+# construction cost once per configuration. Building them once and caching
+# turns a search from hours into minutes - the single change that makes
+# tuning the GNN affordable at all.
 
 from __future__ import annotations
 
@@ -50,8 +49,7 @@ LEGACY_NODE_DIM = 6
 
 @dataclass
 class BlockSnapshot:
-    """One tournament-round: the graph before it, and the matches in it."""
-
+    # One tournament-round: the graph before it, and the matches in it.
     block_idx: int
     tourney_id: str
     round_order: int
@@ -78,15 +76,14 @@ def _node_features(
     snapshot_date,
     surface: str,
 ) -> torch.Tensor:
-    """Per-player node features, always including the history statistics.
-
-    The history block is stored unconditionally so one cache serves both the
-    with-history and without-history models; ``ModelConfig.node_history_features``
-    decides how much of it the network may read.  Storing it is also what makes
-    the parity claim checkable: the same twelve numbers the GBDT receives for
-    the two players in a match are attached here to *every* player in the graph.
-    """
-
+    # Per-player node features, always including the history statistics.
+    #
+    # The history block is stored unconditionally so one cache serves both
+    # the with-history and without-history models; ModelConfig.node_history_features
+    # decides how much of it the network actually reads. Storing it is also
+    # what makes the parity claim checkable: the same twelve numbers the
+    # GBDT gets for the two players in a match are attached here to every
+    # player in the graph.
     rows = []
     for player in players:
         scores = snapshot.get(player, defaults)
@@ -110,12 +107,10 @@ def _node_features(
 
 @dataclass
 class BlockGraph:
-    """One tournament-round's graph, before any orientation draw.
-
-    Everything here depends only on the data and the edge preset, never on the
-    seed, which is what allows one build to serve every seed.
-    """
-
+    # One tournament-round's graph, before any orientation draw.
+    #
+    # Everything here depends only on the data and the edge preset, never
+    # on the seed - that's what lets one build serve every seed.
     block_idx: int
     tourney_id: str
     round_order: int
@@ -133,16 +128,15 @@ def build_graphs(
     *,
     verbose: bool = True,
 ) -> list[BlockGraph]:
-    """Build every block's graph in chronological order, seed-independently.
-
-    Separated from the targets because graph construction is by far the
-    expensive half and does not vary with the seed: building five seeds the old
-    way repeated this work five times over.  Every block is emitted, including
-    any whose target set is empty, so that ``attach_targets`` sees exactly the
-    block sequence the original single-pass build saw - the orientation draw is
-    positional, so a missing block would shift every later label.
-    """
-
+    # Builds every block's graph in chronological order, seed-independently.
+    #
+    # Kept separate from the targets because graph construction is by far
+    # the expensive half and doesn't vary with the seed: building five
+    # seeds the old way repeated this work five times over. Every block
+    # gets emitted, even ones whose target set is empty, so that
+    # attach_targets sees exactly the block sequence the original
+    # single-pass build saw - the orientation draw is positional, so a
+    # missing block would shift every later label.
     edge_dim = len(edge_feature_names(edge_config))
 
     # A dict lookup instead of a DataFrame .loc per player per block: the same
@@ -265,14 +259,13 @@ def attach_targets(
     *,
     seed: int = 42,
 ) -> list[BlockSnapshot]:
-    """Draw the match orientations for one seed on top of prebuilt graphs.
-
-    The draw consumes exactly one ``rng.random()`` per emitted match, in block
-    order, reproducing the sequence used by the GBDT feature builder.  That is
-    what keeps the two model families comparable match by match, so this must
-    iterate every graph in order - including blocks that yield no targets.
-    """
-
+    # Draws the match orientations for one seed on top of prebuilt graphs.
+    #
+    # The draw consumes exactly one rng.random() per emitted match, in
+    # block order, reproducing the sequence the GBDT feature builder uses.
+    # That's what keeps the two model families comparable match by match,
+    # so this has to iterate every graph in order - including blocks that
+    # yield no targets.
     rng = np.random.default_rng(seed)
     snapshots: list[BlockSnapshot] = []
 
@@ -375,13 +368,12 @@ def _block_targets(block_matches, player_to_idx, rng, snapshot, defaults):
 
 
 def graph_cache_path(project_root: Path, scope: str, preset: str) -> Path:
-    """Where the seed-independent graphs live.
-
-    No seed in the key, because nothing here depends on one.  The version tag
-    does belong: v2 graphs carry the twelve history statistics per node, and a
-    v1 file would load without error at the wrong feature width.
-    """
-
+    # Where the seed-independent graphs live.
+    #
+    # No seed in the key, because nothing here depends on one. The version
+    # tag does belong: v2 graphs carry the twelve history statistics per
+    # node, and a v1 file would load without error at the wrong feature
+    # width.
     return (
         project_root
         / ".cache"

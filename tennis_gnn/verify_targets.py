@@ -1,11 +1,10 @@
-"""Check that rebuilt targets reproduce the frozen evaluation set exactly.
-
-The GBDT baseline and every GNN artifact share an ``evaluation_hash`` over
-(phase, tourney_id, round_order, block_idx, row_in_block, y_true).  If this
-package draws match orientations differently, its predictions are silently no
-longer comparable with the published GBDT numbers.  This script fails loudly
-instead.
-"""
+# Checks that rebuilt targets reproduce the frozen evaluation set exactly.
+#
+# The GBDT baseline and every GNN artifact share an evaluation_hash over
+# (phase, tourney_id, round_order, block_idx, row_in_block, y_true). If
+# this package ever draws match orientations differently, its predictions
+# quietly stop being comparable with the published GBDT numbers. This
+# script fails loudly instead.
 
 from __future__ import annotations
 

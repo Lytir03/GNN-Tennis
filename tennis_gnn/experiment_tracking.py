@@ -1,4 +1,4 @@
-"""Persist and compare frozen, match-level experiment predictions."""
+# Saves and compares frozen, match-level experiment predictions.
 
 from __future__ import annotations
 
@@ -52,16 +52,15 @@ def _normalise_predictions(
 
 
 def evaluation_hash(frame: pd.DataFrame, *, phase: str | None = None) -> str:
-    """Hash the matches and labels an artifact was scored on.
-
-    ``phase`` restricts the hash to one phase.  This matters because artifacts
-    legitimately differ in *coverage*: a model that records its training-phase
-    predictions for diagnostics has more rows than one that stores test only,
-    so their whole-artifact hashes differ even when the test sets are identical.
-    A comparison over a single phase is valid exactly when the phase-restricted
-    hashes agree, so that is what the comparison code must check.
-    """
-
+    # Hashes the matches and labels an artifact was scored on.
+    #
+    # phase restricts the hash to one phase. This matters because
+    # artifacts legitimately differ in coverage: a model that records its
+    # training-phase predictions for diagnostics has more rows than one
+    # that only stores test, so their whole-artifact hashes differ even
+    # when the test sets are identical. A comparison over a single phase
+    # is valid exactly when the phase-restricted hashes agree, so that's
+    # what the comparison code has to check.
     if phase is not None:
         frame = frame[frame["phase"] == phase]
     subset = frame[[*KEY_COLUMNS, "y_true"]].sort_values(list(KEY_COLUMNS))
@@ -76,8 +75,7 @@ def save_prediction_artifact(
     *,
     probability_column: str = "prob_before",
 ) -> tuple[Path, Path]:
-    """Save predictions and a compatibility manifest."""
-
+    # Saves predictions and a compatibility manifest.
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
     frame = _normalise_predictions(
@@ -122,14 +120,13 @@ def assert_compatible(
     require_same_seed: bool = True,
     require_same_evaluation: bool = True,
 ) -> None:
-    """Check that artifacts describe the same experimental setup.
-
-    Set ``require_same_evaluation=False`` when the caller has already verified
-    equality on the phase it actually compares (see ``evaluation_hash``'s
-    ``phase`` argument); the whole-artifact hash is too strict in that case,
-    because it also encodes which phases an artifact happens to store.
-    """
-
+    # Checks that artifacts describe the same experimental setup.
+    #
+    # Set require_same_evaluation=False when the caller has already
+    # verified equality on the phase it actually compares (see
+    # evaluation_hash's phase argument); the whole-artifact hash is too
+    # strict in that case, since it also encodes which phases an artifact
+    # happens to store.
     manifests = list(manifests)
     if len(manifests) < 2:
         return

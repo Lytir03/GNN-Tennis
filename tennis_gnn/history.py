@@ -1,23 +1,24 @@
-"""Recency-weighted per-player match history, shared by both model families.
-
-This code used to live inside ``gbdt_comparison/features.py``, where only the
-tabular model could reach it.  That was the source of the information asymmetry
-this branch has been closing: the GBDT received twelve recency-weighted history
-statistics per player and the GNN received none, so a comparison between them
-was partly a comparison of feature engineering effort.
-
-It is shared rather than reimplemented on purpose.  Two implementations of "the
-same" statistic drift - a different decay constant, a different treatment of
-retirements - and the drift shows up as a model difference.  One definition,
-imported by both, makes parity a property of the code instead of a claim in a
-README.
-
-The depth ablation is why these matter.  A one-hop GNN scores 0.6103 against the
-GBDT's 0.6015: the graph's two-hop information is genuinely worth more than the
-gap between the models, but the GNN's one-hop *representation* is worse than
-these hand-built aggregates.  Giving the same aggregates to the nodes is meant
-to remove that handicap while keeping the structural advantage.
-"""
+# Recency-weighted per-player match history, shared by both model families.
+#
+# This code used to live inside gbdt_comparison/features.py, where only the
+# tabular model could reach it. That was the actual source of the
+# information asymmetry this branch has been fixing: the GBDT got twelve
+# recency-weighted history stats per player and the GNN got none, so
+# comparing them was partly a comparison of who had done more feature
+# engineering.
+#
+# It's shared rather than reimplemented on purpose. Two implementations of
+# "the same" statistic drift apart - a different decay constant, a
+# different way of handling retirements - and that drift shows up looking
+# like a model difference. One definition, imported by both, makes parity
+# a property of the code instead of a claim in a README.
+#
+# The depth ablation is why this matters. A one-hop GNN scores 0.6103
+# against the GBDT's 0.6015: the graph's two-hop information really is
+# worth more than the gap between the models, but the GNN's one-hop
+# representation is worse than these hand-built aggregates. Giving the
+# nodes the same aggregates is meant to remove that handicap while keeping
+# the structural advantage.
 
 from __future__ import annotations
 
@@ -69,15 +70,13 @@ def aggregate_history(
     surface: str | None,
     alpha_days: float,
 ) -> dict[str, float]:
-    """Recency-weighted summary of one player's recent matches.
-
-    Weights decay as ``1 / (1 + age_days / alpha_days)``, so a match a year old
-    counts half as much as one played today.  ``surface=None`` uses every
-    surface; passing a surface restricts to it.  A player with no qualifying
-    history gets zeros, which is the same neutral value an unseen player's node
-    features take.
-    """
-
+    # Recency-weighted summary of one player's recent matches.
+    #
+    # Weights decay as 1 / (1 + age_days / alpha_days), so a match a year
+    # old counts half as much as one played today. surface=None uses every
+    # surface; passing a surface restricts to it. A player with no
+    # qualifying history gets zeros, the same neutral value an unseen
+    # player's node features take.
     selected = [
         record
         for record in records
@@ -110,8 +109,7 @@ def aggregate_history(
 
 
 def match_records(match) -> tuple[HistoricalPerformance, HistoricalPerformance]:
-    """The winner's and loser's records for one completed match."""
-
+    # The winner's and loser's records for one completed match.
     parsed = parse_match_score(
         match.score, match.best_of, incomplete_margin_policy="zero"
     )
@@ -138,12 +136,12 @@ def match_records(match) -> tuple[HistoricalPerformance, HistoricalPerformance]:
 
 
 class HistoryTracker:
-    """Rolling per-player history with a fixed look-back window.
-
-    Order of operations matters and is the caller's responsibility: **trim, then
-    read, then append**.  Appending a block's matches before reading its
-    features would leak the outcome of the very match being predicted.
-    """
+    # Rolling per-player history with a fixed look-back window.
+    #
+    # Order of operations matters and it's on the caller to get it right:
+    # trim, then read, then append. Appending a block's matches before
+    # reading its features would leak the outcome of the match being
+    # predicted.
 
     def __init__(self, *, history_years: int = 3, alpha_days: float = 365.0):
         self.histories: dict[str, deque] = defaultdict(deque)
@@ -170,12 +168,9 @@ class HistoryTracker:
     def feature_vector(
         self, player: str, current_date: pd.Timestamp, *, surface: str
     ) -> list[float]:
-        """The twelve statistics, ordered ``all`` then ``surface``.
-
-        This ordering defines the node-feature layout and must stay stable, so
-        cached snapshots remain readable.
-        """
-
+        # The twelve statistics, ordered "all" then "surface". This
+        # ordering defines the node-feature layout and has to stay stable,
+        # or cached snapshots stop being readable.
         values: list[float] = []
         for view in HISTORY_VIEWS:
             stats = self.stats(
@@ -187,8 +182,7 @@ class HistoryTracker:
         return values
 
     def update(self, block_matches) -> None:
-        """Append every match in a block, after its targets have been read."""
-
+        # Appends every match in a block, after its targets have been read.
         for match in block_matches.itertuples(index=False):
             winner, loser = match_records(match)
             self.histories[match.winner_name].append(winner)

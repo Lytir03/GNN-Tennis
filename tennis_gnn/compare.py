@@ -1,14 +1,14 @@
-"""Compare frozen prediction artifacts across models and seeds.
-
-Replaces `multi_seed_summary.py`, `bscore_ablation_summary.py` and the three
-`experiments/0{3,4,5}_*.ipynb` comparison notebooks, which each re-implemented
-a slightly different version of the same table.
-
-Every comparison here is paired: the artifacts are checked to cover exactly the
-same matches with the same labels before any metric is compared.  That check is
-what makes a difference of a few thousandths of a log loss meaningful, and it
-is the check that the temporal experiment silently failed.
-"""
+# Compares frozen prediction artifacts across models and seeds.
+#
+# Replaces multi_seed_summary.py, bscore_ablation_summary.py, and the
+# three experiments/0{3,4,5}_*.ipynb comparison notebooks, each of which
+# had reimplemented a slightly different version of the same table.
+#
+# Every comparison here is paired: the artifacts get checked to cover
+# exactly the same matches with the same labels before any metric is
+# compared. That check is what makes a difference of a few thousandths of
+# a log loss meaningful, and it's the check the temporal experiment
+# silently failed.
 
 from __future__ import annotations
 
@@ -45,8 +45,7 @@ _T_CRITICAL_95 = {2: 12.706, 3: 4.303, 4: 3.182, 5: 2.776, 6: 2.571, 7: 2.447,
 
 
 def t_critical(n: int) -> float:
-    """95% two-sided t multiplier for ``n`` paired observations."""
-
+    # 95% two-sided t multiplier for n paired observations.
     if n < 2:
         return float("nan")
     # Beyond the table, a slightly conservative approximation - it sits above
@@ -136,8 +135,7 @@ def aggregate(per_seed: pd.DataFrame) -> pd.DataFrame:
 def paired_delta(
     per_seed: pd.DataFrame, candidate: str, baseline: str
 ) -> pd.DataFrame:
-    """Seed-level paired comparison of two experiments."""
-
+    # Seed-level paired comparison of two experiments.
     pivot = per_seed.pivot(
         index="seed", columns="experiment", values=list(METRICS)
     )

@@ -1,19 +1,14 @@
-"""Single source of truth for model and training configuration.
-
-Two things are deliberately separated here:
-
-``ModelConfig``
-    *What the model is* - architecture and information flags.  These are the
-    knobs an ablation turns.
-
-``TrainConfig``
-    *How the model is fitted* - optimiser, schedule and calibration.  These are
-    the knobs the validation search turns.
-
-Keeping them apart is what makes a clean ablation possible: an architecture
-comparison must hold the training recipe fixed, and a tuning run must hold the
-architecture fixed.
-"""
+# Single source of truth for model and training config.
+#
+# Two things are kept apart on purpose:
+# - ModelConfig: what the model IS - architecture and information flags.
+#   These are the knobs an ablation turns.
+# - TrainConfig: how the model is FITTED - optimiser, schedule, calibration.
+#   These are the knobs a validation search turns.
+#
+# Keeping them separate is what makes a clean ablation possible: an
+# architecture comparison has to hold the training recipe fixed, and a
+# tuning run has to hold the architecture fixed.
 
 from __future__ import annotations
 
@@ -23,8 +18,7 @@ from typing import Mapping
 
 @dataclass(frozen=True)
 class ModelConfig:
-    """Architecture and information content of the model."""
-
+    # Architecture and what information the model gets to see.
     edge_preset: str = "full"
     direct_bscore_logit: bool = True
     node_bscore_features: bool = True
@@ -84,8 +78,7 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class TrainConfig:
-    """Optimisation recipe.  Everything here is selectable on validation."""
-
+    # The optimisation recipe. Everything here can be picked on validation.
     hidden_dim: int = 32
     dropout: float = 0.3
     learning_rate: float = 1e-4
@@ -132,16 +125,14 @@ BASE_MODEL = ModelConfig()
 
 
 def one_factor_ablations() -> Mapping[str, ModelConfig]:
-    """Return ablations that each differ from ``BASE_MODEL`` in one factor.
-
-    The previous study defined its ablations *cumulatively*: every entry
-    inherited all changes above it.  Because an early step in that chain
-    (node feature normalisation) was strongly harmful, every later entry
-    inherited the damage and none of them measured the factor named in its own
-    title.  A one-factor-at-a-time design is the only way to attribute an
-    effect to the thing being varied.
-    """
-
+    # Each of these differs from BASE_MODEL in exactly one field.
+    #
+    # The old version of this study built its ablations cumulatively -
+    # every entry inherited all the changes above it. One early step in that
+    # chain (node feature normalisation) turned out to be badly harmful, so
+    # every later row inherited the damage and none of them actually
+    # measured the thing in its own name. One factor at a time is the only
+    # way to know an effect came from what you think it came from.
     return {
         "base": BASE_MODEL,
         # Decoder / information content.

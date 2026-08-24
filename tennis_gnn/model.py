@@ -1,9 +1,8 @@
-"""The single tennis GNN.
-
-Previously this class was copy-pasted, with small hand-edited differences, into
-eight notebooks.  There is now one definition, and the differences are
-expressed as ``ModelConfig`` flags.
-"""
+# The one tennis GNN.
+#
+# This class used to be copy-pasted, with small hand-edited differences,
+# into eight notebooks. Now there's one definition, and the differences are
+# expressed as ModelConfig flags.
 
 from __future__ import annotations
 
@@ -21,14 +20,13 @@ LEGACY_NODE_DIM = 6
 
 
 class TennisGNN(nn.Module):
-    """GINE encoder (``config.num_layers`` deep) with a pairwise match decoder.
-
-    GINE is the right convolution for this graph: the edges carry most of the
-    signal (margin, recency, surface, round) and GINE consumes edge features
-    inside the message function.  Attention layers such as GATv2 can only use
-    edge features to weight neighbours, which is why the GAT variant in this
-    repository scored worse on every metric.
-    """
+    # A GINE encoder (config.num_layers deep) with a pairwise match decoder.
+    #
+    # GINE is the right convolution here: the edges carry most of the
+    # signal (margin, recency, surface, round), and GINE consumes edge
+    # features inside the message function. Attention layers like GATv2
+    # can only use edge features to weight neighbours, which is why the GAT
+    # variant in this repo scored worse on every metric.
 
     def __init__(
         self,

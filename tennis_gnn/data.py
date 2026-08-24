@@ -1,10 +1,10 @@
-"""Loading and temporal splitting of the match data.
-
-This replaces the first dozen cells that were duplicated across every notebook
-in ``NNs/``, ``NN_test/`` and ``Intransitivity_NNs/``.  The split boundaries
-and the target-orientation draw are reproduced exactly, so predictions written
-by this package remain key-compatible with the frozen GBDT artifacts.
-"""
+# Loads the match data and applies the fixed train/val/test split.
+#
+# This replaces the first dozen cells that used to be copy-pasted across
+# every notebook in NNs/, NN_test/ and Intransitivity_NNs/. The split
+# boundaries and the target-orientation draw are reproduced exactly, so
+# predictions from this package stay key-compatible with the frozen GBDT
+# artifacts.
 
 from __future__ import annotations
 
@@ -43,15 +43,14 @@ VAL_END = 2016
 
 @dataclass(frozen=True)
 class Split:
-    """Where the temporal boundaries fall, and how far the data runs.
-
-    The original split gives a one-year validation window of 1075 matches, on
-    which the standard error of log loss is about 0.018 - an order of magnitude
-    larger than the differences being selected on (0.002-0.004).  That is why
-    several selection decisions in this project turned out to rest on noise.
-    The expanded split exists to fix that, not to chase a better number.
-    """
-
+    # Where the train/val/test boundaries fall, and how far the data runs.
+    #
+    # The original split gives a one-year validation window of 1075 matches,
+    # where the standard error of log loss is about 0.018 - an order of
+    # magnitude bigger than the differences being selected on (0.002-0.004).
+    # That's why several selection decisions in this project ended up
+    # resting on noise. The expanded split exists to fix that, not to chase
+    # a better number.
     rolling_end: str
     train_end: int
     val_end: int
@@ -101,8 +100,7 @@ def surface_bscore(scores: dict, surface: Any) -> float:
 
 @dataclass
 class Dataset:
-    """Everything the trainer needs, loaded once."""
-
+    # Everything the trainer needs, loaded once.
     matches: pd.DataFrame
     rolling_blocks: pd.DataFrame
     future_matches: pd.DataFrame

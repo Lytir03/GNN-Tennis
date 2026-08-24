@@ -1,11 +1,11 @@
-"""Run named experiments and write frozen prediction artifacts.
-
-This replaces the previous approach, in which a script rewrote individual cells
-of a source notebook by string substitution and cell index to produce one
-generated notebook per ablation.  That machinery broke whenever a cell moved,
-and it made the actual experimental difference between two runs very hard to
-see.  Here an experiment is a ``ModelConfig`` plus a ``TrainConfig``.
-"""
+# Runs named experiments and writes frozen prediction artifacts.
+#
+# This replaces the old approach, where a script rewrote individual cells
+# of a source notebook by string substitution and cell index to produce
+# one generated notebook per ablation. That machinery broke whenever a
+# cell moved, and it made the actual experimental difference between two
+# runs very hard to see. Here an experiment is just a ModelConfig plus a
+# TrainConfig.
 
 from __future__ import annotations
 
@@ -91,14 +91,13 @@ def run_named(
     artifact_name: str | None = None,
     model_config: ModelConfig | None = None,
 ) -> dict:
-    """Run one experiment and freeze its predictions.
-
-    ``model_config`` overrides the named ablation.  It exists for combinations
-    that are deliberately not one-factor - the depth ablation crossed with the
-    history node features, for instance - which must not be added to
-    ``one_factor_ablations()`` without breaking its guarantee.
-    """
-
+    # Runs one experiment and freezes its predictions.
+    #
+    # model_config overrides the named ablation. It exists for
+    # combinations that are deliberately not one-factor - the depth
+    # ablation crossed with the history node features, for instance -
+    # which shouldn't be added to one_factor_ablations() without breaking
+    # its guarantee.
     if model_config is None:
         ablations = one_factor_ablations()
         if name not in ablations:

@@ -19,5 +19,8 @@ temporal_gnn_intransitivity/results/**/events_*.pkl
 # Local snapshot / feature caches
 .cache/
 
-# Full-scope B-score snapshots: ~380 MB, regenerable via new_work/build_bscore.py
-data/processed/*_full.csv
+# All derived/processed datasets: regenerable from data/raw/ via the
+# preprocess/ notebooks (see data/processed/README.md) or
+# new_work/build_bscore.py. Keep the README so the regeneration recipe
+# still lives in git even though the CSVs don't.
+data/processed/*.csv

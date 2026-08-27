@@ -36,17 +36,27 @@ from tennis_gnn.snapshots import BlockSnapshot
 DEVICE = torch.device("cpu")
 
 
+_SURFACE_BSCORE_COLUMN = {"Hard": 1, "Clay": 2, "Grass": 3}
+
+
 def to_pyg(snapshot: BlockSnapshot) -> Data:
-    # Wraps a snapshot as a PyG graph, keeping the raw B-score channel.
+    # Wraps a snapshot as a PyG graph, keeping the raw B-score channels.
     #
-    # raw_bscore_general is kept beside x because the decoder consumes it
-    # directly as a skill prior; it has to survive the node-feature
-    # ablations that zero or standardise x.
+    # raw_bscore_general/raw_bscore_surface are kept beside x because the
+    # decoder consumes them directly as a skill prior; they have to survive
+    # the node-feature ablations that zero or standardise x.
+    #
+    # The block is single-surface (see snapshots.py:build_graphs), so one
+    # column selection per block gives every node in it the right B-score
+    # for the surface actually being played on. Unrecognised surfaces fall
+    # back to column 0 (general) rather than raising.
+    surface_col = _SURFACE_BSCORE_COLUMN.get(snapshot.surface, 0)
     return Data(
         x=snapshot.x,
         edge_index=snapshot.edge_index,
         edge_attr=snapshot.edge_attr,
         raw_bscore_general=snapshot.x[:, 0].clone(),
+        raw_bscore_surface=snapshot.x[:, surface_col].clone(),
     )
 
 

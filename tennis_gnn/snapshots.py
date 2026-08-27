@@ -64,6 +64,7 @@ class BlockSnapshot:
     y: torch.Tensor
     bscore_diff: torch.Tensor
     intransitivity_level: list[str]
+    surface: str
 
 
 def _node_features(
@@ -120,6 +121,7 @@ class BlockGraph:
     edge_index: torch.Tensor
     edge_attr: torch.Tensor
     players: list[str]
+    surface: str
 
 
 def build_graphs(
@@ -240,6 +242,7 @@ def build_graphs(
                 edge_index=edge_index,
                 edge_attr=edge_attr,
                 players=list(players),
+                surface=block_surface,
             )
         )
 
@@ -294,6 +297,7 @@ def attach_targets(
                 x=graph.x,
                 edge_index=graph.edge_index,
                 edge_attr=graph.edge_attr,
+                surface=graph.surface,
                 **targets,
             )
         )
@@ -373,12 +377,12 @@ def graph_cache_path(project_root: Path, scope: str, preset: str) -> Path:
     # No seed in the key, because nothing here depends on one. The version
     # tag does belong: v2 graphs carry the twelve history statistics per
     # node, and a v1 file would load without error at the wrong feature
-    # width.
+    # width. v3 adds the `surface` field to BlockGraph.
     return (
         project_root
         / ".cache"
         / "snapshots"
-        / f"{scope}__{preset}__graphs__v2.pt"
+        / f"{scope}__{preset}__graphs__v3.pt"
     )
 
 
@@ -387,12 +391,13 @@ def cache_path(
 ) -> Path:
     # The seed belongs in this key even though it does not belong in the graph
     # key: the target orientation draw depends on it, and omitting it would
-    # silently serve one seed's labels to another.
+    # silently serve one seed's labels to another. v3 adds the `surface`
+    # field to BlockSnapshot.
     return (
         project_root
         / ".cache"
         / "snapshots"
-        / f"{scope}__{preset}__seed{seed}__v2.pt"
+        / f"{scope}__{preset}__seed{seed}__v3.pt"
     )
 
 

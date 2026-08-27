@@ -185,7 +185,11 @@ class TennisGNN(nn.Module):
             correction = score_ab
 
         if self.config.direct_bscore_logit:
-            bscore = data.raw_bscore_general
+            bscore = (
+                data.raw_bscore_surface
+                if self.config.direct_bscore_surface
+                else data.raw_bscore_general
+            )
             skill_gap = bscore[player_a_idx] - bscore[player_b_idx]
             return self.bscore_scale * skill_gap + correction
         if self.config.antisymmetric_decoder:

@@ -21,6 +21,13 @@ class ModelConfig:
     # Architecture and what information the model gets to see.
     edge_preset: str = "full"
     direct_bscore_logit: bool = True
+    # The direct-logit skip connection always read the surface-agnostic
+    # B-score (node column 0), even though the GBDT baseline gets a
+    # surface-matched B-score as an explicit feature. This flag switches the
+    # skip connection to read the B-score for the match's actual surface
+    # instead. Off by default: BASE_MODEL should stay the previously-found
+    # best configuration until this is shown to help.
+    direct_bscore_surface: bool = False
     node_bscore_features: bool = True
     # The twelve recency-weighted history statistics per player that the GBDT
     # has always received (result balance, game and set margins, straight-sets

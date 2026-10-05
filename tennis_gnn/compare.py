@@ -34,7 +34,7 @@ from tennis_gnn.experiment_tracking import (  # noqa: E402
 METRICS = ("accuracy", "log_loss", "brier")
 LOWER_IS_BETTER = {"log_loss": True, "brier": True, "accuracy": False}
 
-# Two-sided 95% critical values of Student's t on n-1 degrees of freedom.
+# Two-sided 95% critical values of t on n-1 degrees of freedom.
 # This used to be written inline as `2.776 if n == 5 else 1.96`, which is
 # correct at five seeds and badly wrong below it: at three seeds the true
 # value is 4.303, so every interval computed with 1.96 was less than half its

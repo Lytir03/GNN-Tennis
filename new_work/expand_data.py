@@ -100,7 +100,7 @@ def check_regression() -> int:
         print(
             "REGRESSION: the regenerated snapshots differ from the published "
             "ones. The definition changed, so no downstream result is "
-            "comparable to TUTOR_REPORT.md. Fix this before expanding."
+            "comparable to the published results. Fix this before expanding."
         )
         return 1
     print("OK: regeneration reproduces the published snapshots exactly.")

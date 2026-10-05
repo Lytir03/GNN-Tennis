@@ -179,7 +179,7 @@ def build_feature_dataset(
     *,
     tournament_scope: str = "slams_masters",
     seed: int = 42,
-    start_date: str = "2011-01-01",
+    start_date: str | None = None,
     end_date: str | None = None,
     history_years: int = 3,
     alpha_days: float = 365.0,
@@ -190,6 +190,14 @@ def build_feature_dataset(
     scope_filename, scope_suffix, split = SCOPE_FILES[tournament_scope]
     if end_date is None:
         end_date = split.rolling_end
+    if start_date is None:
+        # Must follow the scope, exactly as end_date does.  This used to be
+        # hardcoded to "2011-01-01", which on a scope whose rolling period
+        # starts earlier silently dropped every training year before 2011 and
+        # desynchronised the orientation draw from the GNN's - the two models
+        # then had different labels for the same match and could not be
+        # compared at all.
+        start_date = split.rolling_start
     root = Path(project_root)
     processed = root / "data" / "processed"
     filename = (

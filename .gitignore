@@ -5,6 +5,14 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
+.pytest_cache/
+
+# Environments and secrets
+.env
+.env.*
+.venv/
+venv/
+env/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -23,4 +31,5 @@ temporal_gnn_intransitivity/results/**/events_*.pkl
 # preprocess/ notebooks (see data/processed/README.md) or
 # new_work/build_bscore.py. Keep the README so the regeneration recipe
 # still lives in git even though the CSVs don't.
-data/processed/*.csv
+data/processed/*
+!data/processed/README.md

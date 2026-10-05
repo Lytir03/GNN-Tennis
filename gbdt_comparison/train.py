@@ -178,7 +178,11 @@ def run(
         "feature_columns": feature_columns,
         "validation_metrics": validation_metrics,
         "test_metrics": test_metrics,
-        "split": {"train_end": 2015, "validation": 2016, "test": "2017-2020"},
+        "split": {
+            "train_end": _split.train_end,
+            "validation": _split.val_end,
+            "test": f"{_split.val_end + 1}-{int(_split.rolling_end[:4]) - 1}",
+        },
     }
     manifest_stem = (
         "gbdt_manifest"
@@ -237,7 +241,10 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--scope",
-        choices=("slams", "slams_masters", "full"),
+        choices=(
+            "slams", "slams_masters", "full",
+            "slams_masters_1990", "full_1990",
+        ),
         default="slams_masters",
     )
     parser.add_argument("--seed", type=int, default=42)

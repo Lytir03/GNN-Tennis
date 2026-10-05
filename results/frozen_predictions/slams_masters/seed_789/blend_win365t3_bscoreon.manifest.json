@@ -1,0 +1,26 @@
+{
+  "config": {
+    "members": [
+      "win365_t3_no_bscore_at_all_2hop_buf800",
+      "bscore_only"
+    ],
+    "selection_metric": "validation_log_loss",
+    "weight_grid_step": 0.05,
+    "weights": {
+      "bscore_only": 0.0,
+      "win365_t3_no_bscore_at_all_2hop_buf800": 1.0
+    }
+  },
+  "evaluation_hash": "93bca6269d045ebcb5d82e72bea151576739b9db616ac04fc76cea40da6c2170",
+  "experiment": "blend_win365t3_bscoreon",
+  "model_family": "Blend",
+  "row_count": 10212,
+  "seed": 789,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters",
+  "train_end": 2015,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2016
+}

@@ -1,0 +1,58 @@
+{
+  "config": {
+    "ensemble_members": 1,
+    "graph_window_days": 270,
+    "model": {
+      "aggregation": "sum",
+      "antisymmetric_decoder": true,
+      "attention_heads": 4,
+      "bscore_scale_init": 1.0,
+      "bscore_transform": "raw",
+      "conv_type": "gine",
+      "direct_bscore_logit": true,
+      "direct_bscore_surface": false,
+      "disable_message_passing": false,
+      "edge_preset": "full",
+      "history_to_decoder": true,
+      "include_height": true,
+      "node_bscore_features": true,
+      "node_feature_scaling": "none",
+      "node_history_features": false,
+      "normalize_node_features": false,
+      "num_layers": 2,
+      "per_block_node_norm": false,
+      "rating_source": "bscore",
+      "residual_connections": false,
+      "rich_match_context": true,
+      "tournament_context_edges": false
+    },
+    "optimiser_steps": 1344,
+    "temperature": 1.0508241653442383,
+    "training": {
+      "calibrate": true,
+      "dropout": 0.3,
+      "grad_clip": null,
+      "hidden_dim": 32,
+      "init_seed": null,
+      "learning_rate": 0.0001,
+      "passes": 1,
+      "replay_batch_size": 32,
+      "replay_buffer_size": 200,
+      "seed": 123,
+      "steps_per_block": 4,
+      "weight_decay": 0.0001
+    }
+  },
+  "evaluation_hash": "95935c20742f21c3d3de2cd94ad2c3da702c6ab60cbf883a5e4f8931f95df241",
+  "experiment": "win270_t3_history_decoder_2hop",
+  "model_family": "TennisGNN[gine]",
+  "row_count": 10212,
+  "seed": 123,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters",
+  "train_end": 2015,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2016
+}

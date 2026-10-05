@@ -1,0 +1,57 @@
+{
+  "config": {
+    "ensemble_members": 1,
+    "model": {
+      "aggregation": "sum",
+      "antisymmetric_decoder": true,
+      "attention_heads": 4,
+      "bscore_scale_init": 1.0,
+      "bscore_transform": "raw",
+      "conv_type": "gine",
+      "direct_bscore_logit": true,
+      "direct_bscore_surface": false,
+      "disable_message_passing": true,
+      "edge_preset": "full",
+      "history_to_decoder": true,
+      "include_height": true,
+      "node_bscore_features": true,
+      "node_feature_scaling": "none",
+      "node_history_features": false,
+      "normalize_node_features": false,
+      "num_layers": 1,
+      "per_block_node_norm": false,
+      "rating_source": "bscore",
+      "residual_connections": false,
+      "rich_match_context": true,
+      "tournament_context_edges": false
+    },
+    "optimiser_steps": 7004,
+    "temperature": 0.8470764756202698,
+    "training": {
+      "calibrate": true,
+      "dropout": 0.3,
+      "grad_clip": null,
+      "hidden_dim": 32,
+      "init_seed": null,
+      "learning_rate": 0.0001,
+      "passes": 1,
+      "replay_batch_size": 32,
+      "replay_buffer_size": 200,
+      "seed": 42,
+      "steps_per_block": 4,
+      "weight_decay": 0.0001
+    }
+  },
+  "evaluation_hash": "476d926a950aa829906c6253988609d5b2d415503d1809db25cc58c7d6a9cb25",
+  "experiment": "hopgrid_t3_history_decoder_nonehop",
+  "model_family": "TennisGNN[gine]",
+  "row_count": 32475,
+  "seed": 42,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters_1990",
+  "train_end": 2011,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2013
+}

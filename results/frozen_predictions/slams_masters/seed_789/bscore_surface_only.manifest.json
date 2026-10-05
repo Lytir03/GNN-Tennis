@@ -1,0 +1,21 @@
+{
+  "config": {
+    "method": "sigmoid(scale * bscore_diff)",
+    "scale": 8.466883912270587,
+    "selection_metric": "validation_log_loss",
+    "surface_matched": true,
+    "transform": "raw"
+  },
+  "evaluation_hash": "93bca6269d045ebcb5d82e72bea151576739b9db616ac04fc76cea40da6c2170",
+  "experiment": "bscore_surface_only",
+  "model_family": "BScoreOnly",
+  "row_count": 10212,
+  "seed": 789,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters",
+  "train_end": 2015,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2016
+}

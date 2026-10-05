@@ -86,9 +86,9 @@
   "seed": 123,
   "selection_metric": "validation_log_loss",
   "split": {
-    "test": "2017-2020",
-    "train_end": 2015,
-    "validation": 2016
+    "test": "2019-2024",
+    "train_end": 2016,
+    "validation": 2018
   },
   "test_metrics": {
     "accuracy": 0.6389121338912134,

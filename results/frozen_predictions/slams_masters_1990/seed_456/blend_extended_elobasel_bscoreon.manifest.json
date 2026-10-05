@@ -1,0 +1,28 @@
+{
+  "config": {
+    "members": [
+      "extended_1990_warmup",
+      "elo_baseline",
+      "bscore_only"
+    ],
+    "selection_metric": "validation_log_loss",
+    "weight_grid_step": 0.05,
+    "weights": {
+      "bscore_only": 0.0,
+      "elo_baseline": 0.3,
+      "extended_1990_warmup": 0.7
+    }
+  },
+  "evaluation_hash": "ff50541067e755d01eb92498f45ab796dc64e9fbed19c37f414c9127bfcc9288",
+  "experiment": "blend_extended_elobasel_bscoreon",
+  "model_family": "Blend",
+  "row_count": 32475,
+  "seed": 456,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters_1990",
+  "train_end": 2011,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2013
+}

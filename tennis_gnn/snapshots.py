@@ -28,12 +28,13 @@ from tennis_gnn.edge_features import (  # noqa: E402
     edge_feature_names,
 )
 from tennis_gnn.data import (  # noqa: E402
-    ROLLING_START,
     Dataset,
     surface_one_hot,
 )
 from tennis_gnn.history import (  # noqa: E402
+    ELO_FEATURE_DIM,
     HISTORY_FEATURE_DIM,
+    EloTracker,
     HistoryTracker,
 )
 
@@ -76,6 +77,7 @@ def _node_features(
     tracker: HistoryTracker,
     snapshot_date,
     surface: str,
+    elo: EloTracker,
 ) -> torch.Tensor:
     # Per-player node features, always including the history statistics.
     #
@@ -85,6 +87,11 @@ def _node_features(
     # what makes the parity claim checkable: the same twelve numbers the
     # GBDT gets for the two players in a match are attached here to every
     # player in the graph.
+    #
+    # The four Elo ratings go last, after the history block, for the same
+    # reason and to keep every earlier index where it was: LEGACY_NODE_DIM
+    # narrowing and the history slice must not move when a rating is added.
+    # ModelConfig.rating_source decides which rating the network reads.
     rows = []
     for player in players:
         scores = snapshot.get(player, defaults)
@@ -101,6 +108,7 @@ def _node_features(
                 1.0 if hand == "R" else 0.0,
             ]
             + tracker.feature_vector(player, snapshot_date, surface=surface)
+            + elo.feature_vector(player)
         )
     tensor = torch.tensor(rows, dtype=torch.float)
     return torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
@@ -128,6 +136,7 @@ def build_graphs(
     dataset: Dataset,
     edge_config: EdgeFeatureConfig,
     *,
+    window_days: int = MAX_HISTORY_DAYS,
     verbose: bool = True,
 ) -> list[BlockGraph]:
     # Builds every block's graph in chronological order, seed-independently.
@@ -156,13 +165,18 @@ def build_graphs(
     # Strictly before the first rolling block: a block must never see its own
     # matches in the graph it is predicted from.
     history = matches[
-        matches["tourney_date"] < pd.Timestamp(ROLLING_START)
+        matches["tourney_date"] < dataset.rolling_start
     ].copy()
 
     # Seed the history tracker with the same pre-rolling matches, in date
     # order, so the deques are chronological and the trim is well defined.
     tracker = HistoryTracker(history_years=3, alpha_days=ALPHA_DAYS)
-    tracker.update(history.sort_values("tourney_date", kind="stable"))
+    ordered_history = history.sort_values("tourney_date", kind="stable")
+    tracker.update(ordered_history)
+    # Elo carries no look-back window, so the warmup years are exactly what
+    # makes the ratings meaningful by the time the rolling period starts.
+    elo = EloTracker()
+    elo.update(ordered_history)
 
     graphs: list[BlockGraph] = []
     total = len(dataset.rolling_blocks)
@@ -175,7 +189,11 @@ def build_graphs(
         block_matches = dataset.block_matches(tourney_id, round_order)
         snapshot, defaults = dataset.bscore_snapshot(tourney_id, round_order)
 
-        cutoff = t_block - pd.Timedelta(days=MAX_HISTORY_DAYS)
+        # This window decides both which matches become edges and which
+        # players become nodes. It does NOT touch the history statistics -
+        # HistoryTracker keeps its own three-year window - so sweeping it is a
+        # clean one-factor test of the graph's contents.
+        cutoff = t_block - pd.Timedelta(days=window_days)
         trimmed = history[history["tourney_date"] >= cutoff]
 
         players = pd.Index(
@@ -206,6 +224,7 @@ def build_graphs(
             tracker,
             t_block,
             block_surface,
+            elo,
         )
 
         edge_pairs, edge_attributes, _ = build_bidirectional_edges(
@@ -230,6 +249,7 @@ def build_graphs(
 
         history = pd.concat([history, block_matches], ignore_index=True)
         tracker.update(block_matches)
+        elo.update(block_matches)
 
         graphs.append(
             BlockGraph(
@@ -371,33 +391,49 @@ def _block_targets(block_matches, player_to_idx, rng, snapshot, defaults):
     }
 
 
-def graph_cache_path(project_root: Path, scope: str, preset: str) -> Path:
+def _window_tag(window_days: int) -> str:
+    # Empty at the default, so every cache built before the window became a
+    # parameter stays valid and is still reused.
+    return "" if window_days == MAX_HISTORY_DAYS else f"__w{window_days}"
+
+
+def graph_cache_path(
+    project_root: Path,
+    scope: str,
+    preset: str,
+    window_days: int = MAX_HISTORY_DAYS,
+) -> Path:
     # Where the seed-independent graphs live.
     #
     # No seed in the key, because nothing here depends on one. The version
     # tag does belong: v2 graphs carry the twelve history statistics per
     # node, and a v1 file would load without error at the wrong feature
-    # width. v3 adds the `surface` field to BlockGraph.
+    # width. v3 adds the `surface` field to BlockGraph; v4 appends the four
+    # Elo ratings to the node features.
     return (
         project_root
         / ".cache"
         / "snapshots"
-        / f"{scope}__{preset}__graphs__v3.pt"
+        / f"{scope}__{preset}{_window_tag(window_days)}__graphs__v4.pt"
     )
 
 
 def cache_path(
-    project_root: Path, scope: str, preset: str, seed: int
+    project_root: Path,
+    scope: str,
+    preset: str,
+    seed: int,
+    window_days: int = MAX_HISTORY_DAYS,
 ) -> Path:
     # The seed belongs in this key even though it does not belong in the graph
     # key: the target orientation draw depends on it, and omitting it would
-    # silently serve one seed's labels to another. v3 adds the `surface`
+    # silently serve one seed's labels to another. v4 adds the `surface`
     # field to BlockSnapshot.
     return (
         project_root
         / ".cache"
         / "snapshots"
-        / f"{scope}__{preset}__seed{seed}__v3.pt"
+        / f"{scope}__{preset}{_window_tag(window_days)}__seed{seed}__v4.pt"
     )
 
 
@@ -406,10 +442,11 @@ def load_or_build_graphs(
     dataset: Dataset,
     preset: str,
     *,
+    window_days: int = MAX_HISTORY_DAYS,
     rebuild: bool = False,
     verbose: bool = True,
 ) -> list[BlockGraph]:
-    path = graph_cache_path(project_root, dataset.scope, preset)
+    path = graph_cache_path(project_root, dataset.scope, preset, window_days)
     if path.is_file() and not rebuild:
         if verbose:
             print(f"Loading cached graphs: {path.name}", flush=True)
@@ -418,7 +455,10 @@ def load_or_build_graphs(
     if verbose:
         print(f"Building graphs for preset {preset!r}...", flush=True)
     graphs = build_graphs(
-        dataset, ABLATION_PRESETS[preset], verbose=verbose
+        dataset,
+        ABLATION_PRESETS[preset],
+        window_days=window_days,
+        verbose=verbose,
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(graphs, path)
@@ -433,17 +473,23 @@ def load_or_build(
     preset: str,
     *,
     seed: int = 42,
+    window_days: int = MAX_HISTORY_DAYS,
     rebuild: bool = False,
     verbose: bool = True,
 ) -> list[BlockSnapshot]:
-    path = cache_path(project_root, dataset.scope, preset, seed)
+    path = cache_path(project_root, dataset.scope, preset, seed, window_days)
     if path.is_file() and not rebuild:
         if verbose:
             print(f"Loading cached snapshots: {path.name}", flush=True)
         return torch.load(path, weights_only=False)
 
     graphs = load_or_build_graphs(
-        project_root, dataset, preset, rebuild=rebuild, verbose=verbose
+        project_root,
+        dataset,
+        preset,
+        window_days=window_days,
+        rebuild=rebuild,
+        verbose=verbose,
     )
     if verbose:
         print(f"Drawing targets for seed {seed}...", flush=True)

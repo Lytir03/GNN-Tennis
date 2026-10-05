@@ -24,11 +24,13 @@ from torch import nn
 from torch_geometric.data import Batch, Data
 
 from tennis_gnn.config import ModelConfig, TrainConfig
-from tennis_gnn.data import WARMUP_END
 from tennis_gnn.model import (
+    ELO_COLUMN_OFFSET,
     LEGACY_CONTEXT_DIM,
     LEGACY_NODE_DIM,
+    legacy_width,
     TennisGNN,
+    select_rating_columns,
 )
 from tennis_gnn.snapshots import BlockSnapshot
 
@@ -38,8 +40,33 @@ DEVICE = torch.device("cpu")
 
 _SURFACE_BSCORE_COLUMN = {"Hard": 1, "Clay": 2, "Grass": 3}
 
+# Floor for the log transforms.  B-scores run from ~1e-21 (a player the
+# centrality never reaches) up to ~0.57, so an unfloored log would hand the
+# skip connection a -48 outlier for what is really just "unranked".
+_BSCORE_LOG_FLOOR = 1e-9
 
-def to_pyg(snapshot: BlockSnapshot) -> Data:
+
+def _transform_bscore(values: torch.Tensor, transform: str) -> torch.Tensor:
+    # Conditions one block's B-score channel for the direct-logit skip
+    # connection.  Applied per snapshot, before batching, on purpose: these
+    # tensors are node-aligned and PyG concatenates them along dim 0, so
+    # standardising after batching would mix blocks - the exact bug that
+    # normalize_node_features has.
+    if transform == "raw":
+        return values
+    if transform in {"log", "logz"}:
+        values = torch.log(values.clamp_min(_BSCORE_LOG_FLOOR))
+        if transform == "log":
+            return values
+    if values.numel() < 2:
+        return values - values.mean()
+    std = values.std(unbiased=False)
+    if std < 1e-12:
+        return values - values.mean()
+    return (values - values.mean()) / std
+
+
+def to_pyg(snapshot: BlockSnapshot, model_config: ModelConfig) -> Data:
     # Wraps a snapshot as a PyG graph, keeping the raw B-score channels.
     #
     # raw_bscore_general/raw_bscore_surface are kept beside x because the
@@ -50,13 +77,27 @@ def to_pyg(snapshot: BlockSnapshot) -> Data:
     # column selection per block gives every node in it the right B-score
     # for the surface actually being played on. Unrecognised surfaces fall
     # back to column 0 (general) rather than raising.
-    surface_col = _SURFACE_BSCORE_COLUMN.get(snapshot.surface, 0)
+    # The rating slot moves when rating_source is "elo": the direct-logit
+    # channel has to follow it, or the decoder would keep reading B-score
+    # while the encoder reads Elo.
+    base = (
+        ELO_COLUMN_OFFSET
+        if model_config.rating_source == "elo"
+        and snapshot.x.shape[1] > ELO_COLUMN_OFFSET
+        else 0
+    )
+    surface_col = base + _SURFACE_BSCORE_COLUMN.get(snapshot.surface, 0)
+    transform = model_config.bscore_transform
     return Data(
         x=snapshot.x,
         edge_index=snapshot.edge_index,
         edge_attr=snapshot.edge_attr,
-        raw_bscore_general=snapshot.x[:, 0].clone(),
-        raw_bscore_surface=snapshot.x[:, surface_col].clone(),
+        raw_bscore_general=_transform_bscore(
+            snapshot.x[:, base].clone(), transform
+        ),
+        raw_bscore_surface=_transform_bscore(
+            snapshot.x[:, surface_col].clone(), transform
+        ),
     )
 
 
@@ -167,7 +208,7 @@ def run_experiment(
     np.random.seed(init_seed)
     generator = np.random.default_rng(init_seed)
 
-    graphs = [to_pyg(snapshot) for snapshot in snapshots]
+    graphs = [to_pyg(snapshot, model_config) for snapshot in snapshots]
     edge_dim = snapshots[0].edge_attr.shape[1]
     stored_context_dim = snapshots[0].context.shape[1]
     if model_config.rich_match_context and stored_context_dim <= LEGACY_CONTEXT_DIM:
@@ -183,8 +224,16 @@ def run_experiment(
         else LEGACY_CONTEXT_DIM
     )
 
-    stored_node_dim = snapshots[0].x.shape[1]
-    if model_config.node_history_features and stored_node_dim <= LEGACY_NODE_DIM:
+    # The width the model actually sees, after the rating swap. Not the
+    # stored width: a v4 snapshot carries both ratings, and "bscore"/"elo"
+    # each read only one of them. Taking the stored width here would size the
+    # encoder for columns the model never receives, and would silently widen
+    # the history_to_decoder slice to include the Elo block.
+    stored_node_dim = select_rating_columns(
+        snapshots[0].x, model_config.rating_source
+    ).shape[1]
+    legacy_dim = legacy_width(model_config.rating_source)
+    if model_config.node_history_features and stored_node_dim <= legacy_dim:
         raise ValueError(
             "These cached snapshots predate the per-node history features "
             f"(stored width {stored_node_dim}). Rebuild them with "
@@ -194,19 +243,37 @@ def run_experiment(
     node_dim = (
         stored_node_dim
         if model_config.node_history_features
-        else LEGACY_NODE_DIM
+        else legacy_dim
     )
-    if model_config.history_to_decoder and stored_node_dim <= LEGACY_NODE_DIM:
+    if model_config.history_to_decoder and stored_node_dim <= legacy_dim:
         raise ValueError(
             "history_to_decoder needs snapshots carrying the history block "
             f"(stored width {stored_node_dim}); rebuild with "
             "load_or_build(..., rebuild=True)."
         )
     decoder_extra_dim = (
-        stored_node_dim - LEGACY_NODE_DIM
+        stored_node_dim - legacy_dim
         if model_config.history_to_decoder
         else 0
     )
+
+    feature_mean = feature_std = None
+    if model_config.node_feature_scaling == "fixed":
+        # Fitted on training blocks only, then frozen for the whole run.
+        # Using every block would leak the validation and test years'
+        # feature distribution into the model's inputs.
+        training_nodes = torch.cat(
+            [
+                select_rating_columns(s.x, model_config.rating_source)
+                for s in snapshots
+                if s.phase == "train"
+            ]
+        )
+        feature_mean = training_nodes.mean(dim=0)
+        feature_std = training_nodes.std(dim=0, unbiased=False)
+        feature_std = torch.where(
+            feature_std < 1e-6, torch.ones_like(feature_std), feature_std
+        )
 
     model = TennisGNN(
         model_config,
@@ -216,6 +283,8 @@ def run_experiment(
         match_context_dim=context_dim,
         hidden_dim=train_config.hidden_dim,
         dropout=train_config.dropout,
+        feature_mean=feature_mean,
+        feature_std=feature_std,
     ).to(DEVICE)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(
@@ -224,10 +293,17 @@ def run_experiment(
         weight_decay=train_config.weight_decay,
     )
 
+    # Skip the first calendar year of the rolling period from gradient
+    # updates - a soft buffer so the graph/history state has a full year to
+    # accumulate before the model starts learning from it. Derived from the
+    # snapshots themselves (rather than a fixed year) so it generalises to
+    # any split's rolling-start year, not just the default 2011.
+    train_years = [s.year for s in snapshots if s.phase == "train"]
+    warmup_end = min(train_years) if train_years else None
     trainable = [
         index
         for index, snapshot in enumerate(snapshots)
-        if snapshot.phase == "train" and snapshot.year > WARMUP_END
+        if snapshot.phase == "train" and snapshot.year > warmup_end
     ]
 
     # ---- Pass 1: optimisation over the training years only ----------------

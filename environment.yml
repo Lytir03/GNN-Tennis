@@ -14,3 +14,6 @@ dependencies:
   - pyyaml
   - tqdm
   - pip
+  - pip:
+      - torch
+      - torch_geometric

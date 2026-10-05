@@ -64,7 +64,7 @@ python new_work/audit_artifacts.py        # degenerate output, clamped T, hash d
 ```
 
 This exists so a fault like the temperature-calibration bug (18 artifacts damaged
-before anyone noticed, see `TUTOR_REPORT.md` §12.2) is found by running a script
+before anyone noticed) is found by running a script
 rather than by chasing an odd number by hand. The one-time recalibration fix that
 repaired those 18 artifacts has already been applied to every frozen artifact
 here; the script that did it (`recalibrate.py`) has served its purpose and was

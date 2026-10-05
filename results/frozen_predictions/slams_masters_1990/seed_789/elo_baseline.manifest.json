@@ -1,0 +1,21 @@
+{
+  "config": {
+    "initial_elo": 1500.0,
+    "k_factor": 32.0,
+    "method": "sigmoid(scale * elo_diff)",
+    "scale": 0.005454710854346386,
+    "selection_metric": "validation_log_loss"
+  },
+  "evaluation_hash": "207ad6f0e3a99a0b8808ac6afde9ad11e6ea37716703822175ba753205e2ce30",
+  "experiment": "elo_baseline",
+  "model_family": "Elo",
+  "row_count": 32475,
+  "seed": 789,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters_1990",
+  "train_end": 2011,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2013
+}

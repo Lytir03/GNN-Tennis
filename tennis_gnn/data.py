@@ -51,28 +51,60 @@ class Split:
     # That's why several selection decisions in this project ended up
     # resting on noise. The expanded split exists to fix that, not to chase
     # a better number.
+    # Where online training starts; everything before this is warmup only
+    # (seeds the B-score graph and HistoryTracker, never emits a block).
+    # Kept per-split rather than a single global constant so a scope can use
+    # a different warmup length without affecting any other scope.
+    rolling_start: str
     rolling_end: str
     train_end: int
     val_end: int
 
 
 # Reproduces every published result; retained as the reference split.
-CURRENT_SPLIT = Split(rolling_end="2021-01-01", train_end=2015, val_end=2016)
+CURRENT_SPLIT = Split(
+    rolling_start="2011-01-01", rolling_end="2021-01-01", train_end=2015, val_end=2016
+)
 
 # For the full-tour scope, which runs to 2024.  Two validation years over ~2.6x
 # the match density puts roughly 5x more matches in the window, cutting the
 # standard error enough that validation can actually discriminate.
-EXPANDED_SPLIT = Split(rolling_end="2025-01-01", train_end=2016, val_end=2018)
+EXPANDED_SPLIT = Split(
+    rolling_start="2011-01-01", rolling_end="2025-01-01", train_end=2016, val_end=2018
+)
+
+# extended_history_1990/: a decade of warmup (1980-1989) instead of the usual
+# five years, online training starting 1990. Not part of the published
+# results - see extended_history_1990/ for the scripts that build its data.
+EXTENDED_1990_SPLIT = Split(
+    rolling_start="1990-01-01", rolling_end="2021-01-01", train_end=2011, val_end=2013
+)
+
+# extended_history_1990/, full tour: same 1980-1989 warmup, but scored on
+# 2020-2024 to match the test window used everywhere else in the project.
+FULL_1990_SPLIT = Split(
+    rolling_start="1990-01-01", rolling_end="2025-01-01", train_end=2017, val_end=2019
+)
 
 SCOPE_FILES = {
     "slams": ("atp_matches_slams.csv", "", CURRENT_SPLIT),
     "slams_masters": ("atp_matches_slams_masters.csv", "", CURRENT_SPLIT),
     "full": ("atp_matches_full.csv", "_full", EXPANDED_SPLIT),
+    "slams_masters_1990": (
+        "atp_matches_slams_masters_1990.csv",
+        "_1990",
+        EXTENDED_1990_SPLIT,
+    ),
+    "full_1990": (
+        "atp_matches_full_1990.csv",
+        "_full1990",
+        FULL_1990_SPLIT,
+    ),
 }
 
 
 def phase_for_year(year: int, split: Split = CURRENT_SPLIT) -> str:
-    if year <= 2010:
+    if year < int(split.rolling_start[:4]):
         return "warmup"
     if year <= split.train_end:
         return "train"
@@ -108,6 +140,7 @@ class Dataset:
     player_static: pd.DataFrame
     median_height: float
     scope: str
+    rolling_start: pd.Timestamp
 
     def block_matches(self, tourney_id: str, round_order: int) -> pd.DataFrame:
         return self.future_matches[
@@ -228,7 +261,7 @@ def load_dataset(project_root: Path, *, scope: str = "slams_masters") -> Dataset
     )
 
     future = matches[
-        (matches["tourney_date"] >= ROLLING_START)
+        (matches["tourney_date"] >= split.rolling_start)
         & (matches["tourney_date"] < split.rolling_end)
     ].copy()
 
@@ -255,4 +288,5 @@ def load_dataset(project_root: Path, *, scope: str = "slams_masters") -> Dataset
         player_static=player_static,
         median_height=median_height,
         scope=scope,
+        rolling_start=pd.Timestamp(split.rolling_start),
     )

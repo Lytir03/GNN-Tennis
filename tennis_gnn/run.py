@@ -90,6 +90,7 @@ def run_named(
     members: int = 1,
     artifact_name: str | None = None,
     model_config: ModelConfig | None = None,
+    graph_window_days: int | None = None,
 ) -> dict:
     # Runs one experiment and freezes its predictions.
     #
@@ -108,8 +109,17 @@ def run_named(
 
     _split = SCOPE_FILES[scope][2]
     dataset = load_dataset(ROOT, scope=scope)
+    window_kwargs = (
+        {} if graph_window_days is None
+        else {"window_days": graph_window_days}
+    )
     snapshots = load_or_build(
-        ROOT, dataset, model_config.edge_preset, seed=seed, verbose=verbose
+        ROOT,
+        dataset,
+        model_config.edge_preset,
+        seed=seed,
+        verbose=verbose,
+        **window_kwargs,
     )
 
     start = time.time()
@@ -155,6 +165,7 @@ def run_named(
                 "temperature": result["temperature"],
                 "optimiser_steps": result.get("steps"),
                 "ensemble_members": members,
+                "graph_window_days": graph_window_days,
             },
         ),
         probability_column="probability",

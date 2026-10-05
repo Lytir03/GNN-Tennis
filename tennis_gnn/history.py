@@ -1,18 +1,5 @@
 # Recency-weighted per-player match history, shared by both model families.
 #
-# This code used to live inside gbdt_comparison/features.py, where only the
-# tabular model could reach it. That was the actual source of the
-# information asymmetry this branch has been fixing: the GBDT got twelve
-# recency-weighted history stats per player and the GNN got none, so
-# comparing them was partly a comparison of who had done more feature
-# engineering.
-#
-# It's shared rather than reimplemented on purpose. Two implementations of
-# "the same" statistic drift apart - a different decay constant, a
-# different way of handling retirements - and that drift shows up looking
-# like a model difference. One definition, imported by both, makes parity
-# a property of the code instead of a claim in a README.
-#
 # The depth ablation is why this matters. A one-hop GNN scores 0.6103
 # against the GBDT's 0.6015: the graph's two-hop information really is
 # worth more than the gap between the models, but the GNN's one-hop
@@ -187,6 +174,64 @@ class HistoryTracker:
             winner, loser = match_records(match)
             self.histories[match.winner_name].append(winner)
             self.histories[match.loser_name].append(loser)
+
+
+ELO_SURFACES = ("Hard", "Clay", "Grass")
+ELO_FEATURE_DIM = 1 + len(ELO_SURFACES)
+ELO_INITIAL = 1500.0
+ELO_K = 32.0
+# ln(10) / 400. Dividing an Elo difference by this constant's reciprocal is
+# what turns it into a logit, so storing ratings pre-multiplied by it makes a
+# stored difference *be* the Elo logit - and a decoder coefficient of 1.0
+# exactly reproduces Elo's own prediction.
+ELO_LOGIT_SCALE = float(np.log(10.0) / 400.0)
+
+
+class EloTracker:
+    # Rolling Elo, general plus one rating per surface.
+    #
+    # Same contract as HistoryTracker and the same trap: read before the
+    # block, update after it. A surface rating only moves on matches played
+    # on that surface, so a player with no clay history keeps the initial
+    # rating there - which is the honest answer, not a missing value.
+    #
+    # Unlike the B-score this needs no precomputed snapshot file: Elo is one
+    # cheap pass over the matches in order, so it is computed inside the graph
+    # build rather than read from disk.
+
+    def __init__(self, *, k_factor: float = ELO_K, initial: float = ELO_INITIAL):
+        self.k_factor = k_factor
+        self.initial = initial
+        self.general: dict[str, float] = defaultdict(lambda: initial)
+        self.surface: dict[str, dict[str, float]] = {
+            name: defaultdict(lambda: initial) for name in ELO_SURFACES
+        }
+
+    def feature_vector(self, player: str) -> list[float]:
+        # Ordered general, then ELO_SURFACES. This ordering defines part of
+        # the node-feature layout and has to stay stable, or cached snapshots
+        # stop being readable.
+        values = [self.general[player]]
+        values.extend(self.surface[name][player] for name in ELO_SURFACES)
+        return [(v - self.initial) * ELO_LOGIT_SCALE for v in values]
+
+    def _update_one(self, table: dict[str, float], winner: str, loser: str) -> None:
+        expected = 1.0 / (1.0 + 10 ** ((table[loser] - table[winner]) / 400.0))
+        table[winner] += self.k_factor * (1.0 - expected)
+        table[loser] -= self.k_factor * (1.0 - expected)
+
+    def update(self, block_matches) -> None:
+        # Appends every match in a block, after its features have been read.
+        for match in block_matches.itertuples(index=False):
+            winner, loser = match.winner_name, match.loser_name
+            self._update_one(self.general, winner, loser)
+            surface = getattr(match, "surface", None)
+            if surface in self.surface:
+                self._update_one(self.surface[surface], winner, loser)
+
+
+def elo_feature_names() -> list[str]:
+    return ["elo_general"] + [f"elo_{name.lower()}" for name in ELO_SURFACES]
 
 
 def history_feature_names() -> list[str]:

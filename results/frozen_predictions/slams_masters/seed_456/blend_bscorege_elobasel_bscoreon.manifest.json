@@ -1,0 +1,28 @@
+{
+  "config": {
+    "members": [
+      "bscore_general_control",
+      "elo_baseline",
+      "bscore_only"
+    ],
+    "selection_metric": "validation_log_loss",
+    "weight_grid_step": 0.05,
+    "weights": {
+      "bscore_general_control": 0.7,
+      "bscore_only": 0.0,
+      "elo_baseline": 0.3
+    }
+  },
+  "evaluation_hash": "4e202153c637758b5f00f47f00c567b519ab78ca64dca62813577828a8607bd6",
+  "experiment": "blend_bscorege_elobasel_bscoreon",
+  "model_family": "Blend",
+  "row_count": 10212,
+  "seed": 456,
+  "test_end": 2020,
+  "tournament_scope": "slams_masters",
+  "train_end": 2015,
+  "update_phases": [
+    "train"
+  ],
+  "validation_end": 2016
+}
